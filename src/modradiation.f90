@@ -220,8 +220,8 @@ contains
       dt_lim = min(dt_lim,tnext-timee)
         
     end if
-    if(((itimerad==0 .or. timee==tnext) .and. rk3step==1) .or. restartrad==.True.) then
-      if (restartrad == .False.) then 
+    if(((itimerad==0 .or. timee==tnext) .and. rk3step==1) .or. restartrad.eqv..True.) then
+      if (restartrad.eqv..False.) then 
          tnext = tnext+itimerad
       endif
       restartrad=.False.      
@@ -266,7 +266,10 @@ contains
   end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine exitradiation
+    use modradtenstream, only : dales_tenstream_destroy
     implicit none
+
+    if(iradiation.eq.irad_tenstr) call dales_tenstream_destroy()
 
     deallocate(thlprad,thlprSW,thlprLW,swd,swdir,swdif,swu,lwd,lwu,swdca,swuca,lwdca,lwuca,lwc)
 

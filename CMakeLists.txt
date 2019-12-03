@@ -150,7 +150,7 @@ if(WITH_TENSTREAM)
   # Add Tenstream
   include_directories("${TENSTREAM_BUILD_DIR}/include/")
 
-  set (TENSTREAM_LIBS "pprts_rrtmg" "pprts_rrtm_lw" "pprts_rrtm_sw" "pprts" "pprts_base")
+  set (TENSTREAM_LIBS "tenstream")
   foreach (LIB ${TENSTREAM_LIBS})
     FIND_LIBRARY(TENSTREAM_LIBRARY_${LIB} "${LIB}" "${TENSTREAM_BUILD_DIR}/lib/")
     list(APPEND LIBS "${TENSTREAM_LIBRARY_${LIB}}")
