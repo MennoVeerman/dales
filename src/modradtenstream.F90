@@ -7,6 +7,9 @@ module modradtenstream
       stop 'Your build does not support the TenStream solver for 3D Radiative Transfer... please reconfigure with -DWITH_TENSTREAM=ON'
     end subroutine
 
+    subroutine dales_tenstream_destroy()
+      stop 'Your build does not support the TenStream solver for 3D Radiative Transfer... please reconfigure with -DWITH_TENSTREAM=ON'
+    end subroutine
 #else
   use m_data_parameters, only: ireals, iintegers, mpiint, one, zero,  init_mpi_data_parameters, pi, default_str_len
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
@@ -44,7 +47,7 @@ module modradtenstream
   save
 
   private
-  public :: dales_tenstream
+  public :: dales_tenstream, dales_tenstream_destroy
 
   logical,parameter :: ldebug=.False.
 !  logical,parameter :: ldebug=.True.
@@ -72,7 +75,7 @@ contains
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, ptlay,plwc,ph2ovmr, preliq
 
     real(ireals) :: mu, modeltime
-    integer(mpiint) :: inp_comm,mpierr
+    integer(mpiint) :: inp_comm
     integer(iintegers) :: i, j, k, kk
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
     
@@ -107,8 +110,8 @@ contains
 
     !inp_comm = comm3d
     call reorder_mpi_comm(comm3d, nprocx,nprocy, inp_comm)
-    allocate(nxproc(nprocx), source=imax)
-    allocate(nyproc(nprocy), source=jmax)
+    allocate(nxproc(nprocx), source=int(imax, iintegers))
+    allocate(nyproc(nprocy), source=int(jmax, iintegers))
     
     modeltime = real(rtimee, ireals)
 
@@ -132,8 +135,7 @@ contains
       d_tlev(k,:,:) = real(d_tlay(k-1,:,:) + d_tlay(k,:,:), ireals)*.5_ireals
     enddo
     d_tlev(k1,:,:) = 2*d_tlay(kmax,:,:) - d_tlev(kmax,:,:) ! linear extrapolation towards top
-    !d_tlev(1,:,:) = 2*d_tlay(1,:,:) - d_tlev(2,:,:) ! same for bottom layer TODO: this needs something better, at least when we have an interactive surface
-    d_tlev(1,:,:) = tskin(2:i1,2:j1) * (ps/pref0) ** (rd/cp) !use skin temperature from surface scheme
+    d_tlev(1,:,:) = real(tskin(2:i1,2:j1) * (ps/pref0) ** (rd/cp), ireals) !use skin temperature from surface scheme
     if(ldebug .and. myid.eq.0) then
       print *,'shape for d_plev', shape(d_plev)
       print *,'shape for d_tlay', shape(d_tlay)
@@ -157,19 +159,14 @@ contains
       pplev,ptlev,atm,ptlay,d_h2ovmr=ph2ovmr,d_lwc=plwc,d_reliq=preliq)
 
 
-
-
-
     ! Thermal RT
-    call pprts_rrtmg(inp_comm, pprts_solver,atm,imax,jmax, &
+    call pprts_rrtmg(inp_comm, pprts_solver,atm,          &
+            int(imax, iintegers), int(jmax, iintegers),   &
             real(dx, ireals), real(dy, ireals),           &
             phi0, theta0,                                 &
-            albedo_thermal, albedo_solar,   &
+            albedo_thermal, albedo_solar,                 &
             .true., .false.,                              &
             edir,edn,eup,abso,                            &
-            !d_plev=d_plev, d_tlev=d_tlev,                 &
-           ! d_h2ovmr=d_h2ovmr,                            &
-            !d_lwc=d_lwc, d_reliq=d_reliq,                 &
             nxproc=nxproc, nyproc=nyproc, opt_time=modeltime)
 
     if(ldebug .and. myid.eq.0) then
@@ -200,15 +197,13 @@ contains
 
     if(mu.gt.cos(deg2rad(solar_min_sza))) then
       ! Solar RT
-      call pprts_rrtmg(inp_comm, pprts_solver,atm,imax,jmax,&
+      call pprts_rrtmg(inp_comm, pprts_solver,atm,          &
+              int(imax, iintegers), int(jmax, iintegers),   &
               real(dx,ireals), real(dy,ireals),             &
               phi0, theta0,                                 &
               albedo_thermal, albedo_solar,   &
               .false., .true.,                              &
               edir,edn,eup,abso,                            &
-          !    d_plev=d_plev, d_tlev=d_tlev,                 &
-          !    d_h2ovmr=d_h2ovmr,                            &
-          !    d_lwc=d_lwc, d_reliq=d_reliq,                 &
               nxproc=nxproc, nyproc=nyproc, opt_time=modeltime)
 
       if(ldebug .and. myid.eq.0) then
@@ -219,7 +214,7 @@ contains
         k = ubound(edir,1)
         print *,k,'edir',edir(k,1,1),'ediff',edn(k,1,1), eup(k,1,1)
       endif
-      
+
       do k=1,k1
         kk = ubound(edn,1) - (k-1) ! TenStream providing fluxes from TOA to Srfc and on the bigger grid...
         swdir(2:i1, 2:j1, k) = edir(kk, :, :)
@@ -250,10 +245,10 @@ contains
       SW_dn_TOA(2:i1, 2:j1) = 0
       SW_up_TOA(2:i1, 2:j1) = 0
     endif
+  end subroutine
 
+  subroutine dales_tenstream_destroy()
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
-!    call destroy_tenstr_atm(atm)
-
   end subroutine
 #endif
 end module modradtenstream
