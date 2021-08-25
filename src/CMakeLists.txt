@@ -3,7 +3,7 @@ set(target_lib dales)
 
 # Add all Fortran90 files from this directory
 # This will also add some unwated files, which we will remove again below
-FILE(GLOB sourcefiles "*.f90")
+FILE(GLOB sourcefiles "*.f90" "*.F90")
 
 list(REMOVE_ITEM sourcefiles ${CMAKE_CURRENT_SOURCE_DIR}/test_transposes.f90)
 
@@ -34,7 +34,7 @@ endif(USE_FFTW)
 
 # Stand-alone DALES program
 add_executable(${target_name} ${sourcefiles} ${CMAKE_CURRENT_BINARY_DIR}/modversion.f90)
-target_link_libraries(${target_name} ${NETCDF_LIBS} ${OPTIONAL_LIBS})
+target_link_libraries(${target_name} ${NETCDF_LIBS} ${OPTIONAL_LIBS} ${LIBS})
 add_dependencies(${target_name} tag_git_version)
 
 # DALES library, e.g. for use with OMUSE

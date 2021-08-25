@@ -40,6 +40,7 @@ SAVE
   integer, parameter :: irad_par   = 2   !< 2=parameterized radiation
   integer, parameter :: irad_lsm   = 3   !< 3=simple surface radiation for land surface model
   integer, parameter :: irad_rrtmg = 4   !< 4=radiation using the rapid radiative transfer model
+  integer, parameter :: irad_tenstr= 5   !< 4=radiation using the TenStream solver (3D radiative transfer)
   integer, parameter :: irad_user  = 10  !< 10=user specified radiation
 
   logical :: rad_ls      = .true.        !< prescribed radiative forcing
@@ -171,6 +172,8 @@ SAVE
   real mu                            !< cosine of the solar zenith angle
 
   real, allocatable :: thlprad(:,:,:)!<   the radiative tendencies
+  real, allocatable :: thlprSW(:,:,:)!<   Shortwave radiative tendency
+  real, allocatable :: thlprLW(:,:,:)!<   Longwave radiative tendency
   real, allocatable :: swd(:,:,:)    !<   shortwave downward radiative flux
   real, allocatable :: swdir(:,:,:)  !<   Direct shortwave downward radiative flux
   real, allocatable :: swdif(:,:,:)  !<   Difuse shortwave downward radiative flux
@@ -217,5 +220,98 @@ contains
       zenith = cos(cnstZenith*pi/180.)
     end if
   end function zenith
+
+!calculate azimuth angle (for 3D radiation)
+  real function azimuth(time, xday, xlat,xlon,mu, year)
+    use modglobal, only : pi
+!     implicit none
+    real, intent(in) :: time, xday, xlat, xlon, mu
+    integer, intent(in) :: year
+    real :: phi,el,obliq,xlam,declination,hour_solar_time,hour_angle
+    real :: day,seconds_since_midnight,days_per_year
+
+    if (mod(year, 4)==0 .and. (mod(year, 100) /= 0 .or. mod(year, 400) == 0)) then
+        days_per_year = 366.
+    else
+        days_per_year = 365.
+    end if
+
+    doy    = xday + floor(time/86400.) - 1
+    phi    = xlat * pi/180.
+    el     = xlon * pi/180.
+
+    ! DOY in range (0, 2*pi)
+    doy_pi = 2. * pi * doy / days_per_year
+    
+    ! Solar declination angle
+    declination = 0.006918 - 0.399912 * cos(doy_pi) + 0.070257 * sin(doy_pi) & 
+            -0.006758 * cos(2*doy_pi) + 0.000907 * sin(2*doy_pi) &
+            -0.002697 * cos(3*doy_pi) + 0.00148  * sin(3*doy_pi)
+    
+    azimuth = acos(max(-1.,min(1.,(sin(declination)-mu*sin(phi))/(sin(acos(mu))*cos(phi))))) / pi * 180.
+    
+    ! Hour angle in radians, using true solar time
+    a1 = (1.00554 * doy -  6.28306) * pi/180.
+    a2 = (1.93946 * doy + 23.35089) * pi/180.
+    a3 = (7.67825 * sin(a1) + 10.09176 * sin(a2)) / 60.
+    
+    seconds_since_midnight= mod(time,86400.)    
+    hour_solar_time = (seconds_since_midnight/3600.) - a3 + el * (180./pi/15.)
+    hour_angle = (hour_solar_time-12.) * 15. * (pi/180.)
+
+    if (hour_angle > 0) then
+        azimuth = 360-azimuth
+    endif 
+  end function azimuth
+
+
+!< Improved calculation of the cosine of the zenith angle (IFS method)
+!< \param time UTC Time of the simulation
+!< \param xday Day at the start of the simulation
+!< \param xlat Latitude of the domain
+!< \param xlon Longitude of the domain
+  real function zenith_ifs(time, xday, xlat, xlon, year)
+    use modglobal, only : pi
+!     implicit none
+    real, intent(in) :: time, xday, xlat, xlon
+    integer, intent(in) :: year
+    real :: radlon, radlat, doy, doy_pi, declination_angle
+    real :: a1, a2, a3, days_per_year
+    real :: seconds_since_midnight, hour_solar_time, hour_angle
+
+    if (.not.lCnstZenith) then
+        if (mod(year, 4)==0 .and. (mod(year, 100) /= 0 .or. mod(year, 400) == 0)) then
+            days_per_year = 366.
+        else
+            days_per_year = 365.
+        end if
+
+        doy    = xday + floor(time/86400.) - 1
+        radlat = xlat * pi/180. 
+        radlon = xlon * pi/180. 
+
+        ! DOY in range (0, 2*pi)
+        doy_pi = 2. * pi * doy / days_per_year
+        
+        ! Solar declination angle
+        declination_angle = 0.006918 - 0.399912 * cos(doy_pi) + 0.070257 * sin(doy_pi) & 
+                            -0.006758 * cos(2*doy_pi) + 0.000907 * sin(2*doy_pi) &
+                            -0.002697 * cos(3*doy_pi) + 0.00148  * sin(3*doy_pi)
+        
+        ! Hour angle in radians, using true solar time
+        a1 = (1.00554 * doy -  6.28306) * pi/180.
+        a2 = (1.93946 * doy + 23.35089) * pi/180.
+        a3 = (7.67825 * sin(a1) + 10.09176 * sin(a2)) / 60.
+        
+        seconds_since_midnight= mod(time,86400.)    
+        hour_solar_time = (seconds_since_midnight/3600.) - a3 + radlon * (180./pi/15.)
+        hour_angle = (hour_solar_time-12.) * 15. * (pi/180.)
+
+        zenith_ifs = max(0.,sin(radlat)*sin(declination_angle) + & 
+                        cos(radlat)*cos(declination_angle) * cos(hour_angle))
+    else
+        zenith_ifs = cos(cnstZenith*pi/180.)
+    end if
+  end function zenith_ifs
 
 end module modraddata

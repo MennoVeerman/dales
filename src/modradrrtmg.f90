@@ -234,8 +234,11 @@ contains
           thlpsd          = -(swd(i,j,k+1)-swd(i,j,k))
           thlpsu          = -(swu(i,j,k+1)-swu(i,j,k))
 
-          !thlprad(i,j,k)  = thlprad(i,j,k) + (thlpld+thlplu+thlpsu+thlpsd)/(rhof(k)*cp*exnf(k)*dzf(k))
           thlprad(i,j,k)  = thlprad(i,j,k)-(lwd(i,j,k+1)-lwd(i,j,k)+lwu(i,j,k+1)-lwu(i,j,k)+swd(i,j,k+1)-swd(i,j,k)+swu(i,j,k+1)-swu(i,j,k)) &
+                              /(rhof(k)*cp*exnf(k)*dzf(k))
+          thlprSW(i,j,k)  = thlprSW(i,j,k)-(swd(i,j,k+1)-swd(i,j,k)+swu(i,j,k+1)-swu(i,j,k)) &
+                              /(rhof(k)*cp*exnf(k)*dzf(k))
+          thlprLW(i,j,k)  = thlprLW(i,j,k)-(lwd(i,j,k+1)-lwd(i,j,k)+lwu(i,j,k+1)-lwu(i,j,k)) &
                               /(rhof(k)*cp*exnf(k)*dzf(k))
         end do
       end do
@@ -794,7 +797,7 @@ contains
 
   subroutine setupSW(sunUp)
 
-    use modglobal,   only : xday,xlat,xlon,imax,xtime,rtimee
+    use modglobal,   only : xday,xlat,xlon,imax,xtime,rtimee,xyear
     use shr_orb_mod, only : shr_orb_decl
     use modmpi,      only : myid
     use modsurfdata, only : albedoav
@@ -823,7 +826,7 @@ contains
 
       call shr_orb_decl( dayForSW )                      ! Saves some orbital values to modraddata
       solarZenithAngleCos(:) =  &
-           zenith(xtime*3600 + rtimee, xday, xlat, xlon) ! Used function in modraddata
+           zenith_ifs(xtime*3600 + rtimee, xday, xlat, xlon, xyear) ! Used function in modraddata
 !      solarZenithAngleCos(:) =  0.707106781               ! cos 45gr
 !      solarZenithAngleCos(:) = 0.087155742747658           ! cos 85gr
        !solarZenithAngleCos(:) = 0.615661475  !cos 52 gr

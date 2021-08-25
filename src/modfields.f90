@@ -77,6 +77,7 @@ save
   real, allocatable :: distw(:,:)
 
   real, allocatable :: ql0(:,:,:)  !<   liquid water content
+  real, allocatable :: qlrad(:,:,:)  !<   liquid water content during radiation 
   real, allocatable :: tmp0(:,:,:) !<   temperature at full level
   real, allocatable :: thv0h(:,:,:)!<   theta_v at half level
 

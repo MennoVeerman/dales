@@ -191,10 +191,12 @@ contains
     use mpi
     use modmpi, only: myid
     use modglobal, only : timee, dt_lim,rk3step
-    use modfields, only : thlp
+    use modfields, only : thlp,qlrad
     use moduser,   only : rad_user
     use modradfull,only : radfull
     use modradrrtmg, only : radrrtmg
+    use modradtenstream, only: dales_tenstream
+    
     implicit none
     real wtime
 
@@ -205,7 +207,12 @@ contains
       tnext = tnext+itimerad
 
       wtime = MPI_Wtime()
+      
       thlprad = 0.0
+      thlprSW = 0.0
+      thlprLW = 0.0
+      qlrad = 0.0
+      
       select case (iradiation)
           case (irad_none)
           case (irad_full)
@@ -218,6 +225,8 @@ contains
             call radlsm
           case (irad_rrtmg)
             call radrrtmg
+          case (irad_tenstr)
+            call dales_tenstream
           case (irad_user)
 ! EWB: the if statement should came first because moduser uses a radpar variable
             if(rad_longw.or.rad_shortw) then
