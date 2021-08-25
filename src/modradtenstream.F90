@@ -60,11 +60,10 @@ contains
 
   subroutine dales_tenstream
     use modmpi, only : comm3d, myid, nprocx, nprocy, my_real, mpierr,mpi_max
-    use modglobal, only : dx, dy, xday, xlat, xlon,xyear,cp,Rd, xtime, rtimee,pref0,tup,tdn,tmelt
+    use modglobal, only : dx, dy, xday, xlat, xlon,xyear,cp,Rd, xtime, rtimee,pref0,tup,tdn,tmelt, zf
     use modmicrodata, only : Nc_0,sig_g
     use mpi, only : mpi_barrier
     use modsurfdata, only : albedoav,tskin,ps
-    use modglobal, only : zf
 
     character(len=default_str_len),parameter :: atm_filename='afglus_100m.dat'
     real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso ! [nlev_merged(-1), nxp, nyp]
@@ -81,7 +80,7 @@ contains
     integer(mpiint) :: inp_comm
     integer(iintegers) :: i, j, k, kk
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
-    real :: reff_factor, ilratio, tempC, IWC0, B_function
+    real :: reff_factor, ilratio, tempC, IWC0, B_function, rho_atm
     real(ireals), parameter :: solar_min_sza=85 ! minimum solar zenith angle -- below, dont compute solar rad
     real(ireals), parameter :: rho_liq = 1000  
     type(t_tenstr_atm) :: atm
@@ -143,7 +142,7 @@ contains
           endif
 
           if (d_iwc(k,i,j).gt.0) then
-             B_function = -2 + 0.001 *(273.-d_tlay(k,i,j))**1.5 * alog10(d_iwc(k,i,j)/IWC0) !Eq. 14 Wyser 1998
+             B_function = -2 + 0.001 *(273.-d_tlay(k,i,j))**1.5 * alog10(d_iwc(k,i,j)*rhof(k)/IWC0) !Eq. 14 Wyser 1998
              d_reice(k,i,j) = 377.4 + 203.3 * B_function + 37.91 * B_function**2 + 2.3696 * B_function**3 !micrometer, Wyser 1998, Eq. 35
              d_reice(k,i,j) = min(max(d_reice(k,i,j), 5._ireals), 140._ireals)
           endif
