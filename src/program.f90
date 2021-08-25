@@ -132,6 +132,7 @@ program DALES
   use modAGScross,     only : initAGScross, AGScross,exitAGScross
   use modlsmcrosssection, only : initlsmcrosssection, lsmcrosssection,exitlsmcrosssection
   use modcloudfield,   only : initcloudfield, cloudfield
+  use modthreedheating,  only : initthreedheating, threedheating, exitthreedheating
   use modfielddump,    only : initfielddump, fielddump,exitfielddump
   use modsamptend,     only : initsamptend, samptend,exitsamptend, tend_start,tend_adv,tend_subg,tend_force,&
                               tend_rad,tend_ls,tend_micro, tend_topbound,tend_pois,tend_addon, tend_coriolis,leibniztend
@@ -178,6 +179,7 @@ program DALES
   !call initprojection
   call initcloudfield
   call initfielddump
+  call initthreedheating
   call initsamptend
   call initradstat
   call initlsmstat
@@ -284,6 +286,7 @@ program DALES
     !call projection
     call cloudfield
     call fielddump
+    call threedheating
     !call particles
 
     call bulkmicrostat
@@ -320,6 +323,7 @@ program DALES
   call exitAGScross
   call exitlsmcrosssection
   call exitcape
+  call exitthreedheating
   call exitfielddump
   call exitheterostats
   call exitcanopy

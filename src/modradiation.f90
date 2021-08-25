@@ -47,7 +47,8 @@ contains
     namelist/NAMRADIATION/ &
       lCnstZenith, cnstZenith, lCnstAlbedo, ioverlap, &
       inflglw, iceflglw, liqflglw, inflgsw, iceflgsw, liqflgsw, &
-      ocean, usero3, co2factor, doperpetual, doseasons, iyear
+      ocean, usero3, co2factor, doperpetual, doseasons, iyear, &
+      lsmthsurf
 
     if(myid==0)then
       open(ifnamopt,file=fname_options,status='old',iostat=ierr)
