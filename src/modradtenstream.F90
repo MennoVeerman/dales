@@ -74,7 +74,7 @@ contains
     real(ireals),dimension(1:k1,  2:i1, 2:j1),target :: d_plev, d_tlev
     real(ireals),dimension(1:kmax,2:i1, 2:j1),target :: d_tlay, d_h2ovmr
     real(ireals),dimension(1:kmax,2:i1, 2:j1),target :: d_lwc, d_iwc, d_reliq, d_reice ! [g/kg], [micron]
-    real(ireals), pointer, dimension(:,:) :: pplev, ptlev, ptlay,plwc,piwc,ph2ovmr, preliq
+    real(ireals), pointer, dimension(:,:) :: pplev, ptlev, ptlay,plwc,piwc,ph2ovmr, preliq, preice
     real(ireals),parameter :: solconc = 1368.22
     real(ireals) :: mu, modeltime
     integer(mpiint) :: inp_comm
@@ -92,11 +92,9 @@ contains
 
     mu = real(zenith_ifs(xtime*3600 + rtimee, xday, xlat, xlon, xyear), ireals)
     theta0 = acos(mu)
-    phi0 = rad2deg(real(azimuth(xtime*3600 + rtimee, xday, xlat, xlon, real(mu), xyear), ireals)) 
-    sun_direction(:) = (/-cos(phi0)*sin(theta0), -sin(phi0)*sin(theta0), -cos(theta0)/)
-!    return float3{-cos(azimuth)*sin(solar_zenith),
-!            -sin(azimuth)*sin(solar_zenith), -cos(solar_zenith)};
-            
+    phi0 = real(deg2rad(azimuth(xtime*3600 + rtimee, xday, xlat, xlon, real(mu), xyear)), ireals) 
+    sun_direction(:) = (/-sin(phi0)*sin(theta0), -cos(phi0)*sin(theta0), -cos(theta0)/)
+
     albedo_thermal = 0.05
     if (lCnstAlbedo) then
       albedo_solar = real(albedoav, ireals)
@@ -130,27 +128,27 @@ contains
         d_plev(:, i, j) = real(presh(:), ireals)/100
         do k=1,kmax
           d_tlay(k,i,j) = real(thl0(i,j,k) * exnf(k) + (rlv / cp) * ql0(i,j,k), ireals)
-          ilratio = max(0.,min(1.,(d_tlay(k,i,j)-tdn)/(tup-tdn))) ! cloud water vs cloud ice partitioning
           d_h2ovmr(k,i,j) = real(mwdry/mwh2o * max((qt0(i,j,k) - ql0(i,j,k)),1e-18), ireals)
 
-          d_lwc(k,i,j) = real(ql0(i,j,k) * ilratio, ireals)
-          d_iwc(k,i,j) = real(ql0(i,j,k) - d_lwc(k,i,j), ireals)
+          d_lwc(k,i,j) = real(ql0(i,j,k), ireals)
+          d_iwc(k,i,j) = real(0., ireals)
+          !ilratio = max(0.,min(1.,(d_tlay(k,i,j)-tdn)/(tup-tdn))) ! cloud water vs cloud ice partitioning
+          !d_lwc(k,i,j) = real(ql0(i,j,k) * ilratio, ireals)
+          !d_iwc(k,i,j) = real(ql0(i,j,k) - d_lwc(k,i,j), ireals)
 
           if (d_lwc(k,i,j).gt.0) then
            d_reliq(k,i,j) = real(reff_factor * d_lwc(k,i,j)**(1./3.),ireals)
            d_reliq(k,i,j) = min(max(d_reliq(k,i,j), 2.5_ireals), 60._ireals)
+           d_lwc(k,i,j) = real(d_lwc(k,i,j) * 1e3, ireals)
           endif
 
-          if (d_iwc(k,i,j).gt.0) then
-             B_function = -2 + 0.001 *(273.-d_tlay(k,i,j))**1.5 * alog10(d_iwc(k,i,j)*rhof(k)/IWC0) !Eq. 14 Wyser 1998
-             d_reice(k,i,j) = 377.4 + 203.3 * B_function + 37.91 * B_function**2 + 2.3696 * B_function**3 !micrometer, Wyser 1998, Eq. 35
-             d_reice(k,i,j) = min(max(d_reice(k,i,j), 5._ireals), 140._ireals)
-          endif
+          !if (d_iwc(k,i,j).gt.0) then
+          !   B_function = -2 + 0.001 *(273.-d_tlay(k,i,j))**1.5 * alog10(d_iwc(k,i,j)*rhof(k)/IWC0) !Eq. 14 Wyser 1998
+          !   d_reice(k,i,j) = 377.4 + 203.3 * B_function + 37.91 * B_function**2 + 2.3696 * B_function**3 !micrometer, Wyser 1998, Eq. 35
+          !   d_reice(k,i,j) = min(max(d_reice(k,i,j), 5._ireals), 140._ireals)
+          !   d_iwc(k,i,j) = real(d_iwc(k,i,j) * 1e3, ireals)
+          !endif
 
-          d_lwc(k,i,j) = real(d_lwc(k,i,j) * 1e3, ireals)
-          d_iwc(k,i,j) = real(d_iwc(k,i,j) * 1e3, ireals)
-
-            
         enddo
       enddo
     enddo
@@ -179,9 +177,10 @@ contains
     plwc (1:size(d_lwc ,1),1:size(d_lwc ,2)*size(d_lwc ,3)) => d_lwc
     piwc (1:size(d_iwc ,1),1:size(d_iwc ,2)*size(d_iwc ,3)) => d_iwc
     preliq(1:size(d_reliq,1),1:size(d_reliq,2)*size(d_reliq,3)) => d_reliq
+    preice(1:size(d_reice,1),1:size(d_reice,2)*size(d_reice,3)) => d_reice
 
     call setup_tenstr_atm(inp_comm,.False.,atm_filename, &
-    pplev,ptlev,atm,ptlay,d_h2ovmr=ph2ovmr,d_lwc=plwc,d_iwc=piwc,d_reliq=preliq)
+    pplev,ptlev,atm,ptlay,d_h2ovmr=ph2ovmr,d_lwc=plwc,d_reliq=preliq)
 
     ! Thermal RT
     call pprts_rrtmg(inp_comm, pprts_solver,atm,          &

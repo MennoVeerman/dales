@@ -87,6 +87,8 @@ contains
     call MPI_BCAST(iyear,      1,MPI_INTEGER,0,comm3d,ierr)
 
     allocate(thlprad   (2-ih:i1+ih,2-jh:j1+jh,k1) )
+    allocate(thlprSW   (2-ih:i1+ih,2-jh:j1+jh,k1) )
+    allocate(thlprLW   (2-ih:i1+ih,2-jh:j1+jh,k1) )
     allocate(swd       (2-ih:i1+ih,2-jh:j1+jh,k1) )
     allocate(swu       (2-ih:i1+ih,2-jh:j1+jh,k1) )
     allocate(lwd       (2-ih:i1+ih,2-jh:j1+jh,k1) )
@@ -112,6 +114,8 @@ contains
     allocate(LW_dn_ca_TOA(2-ih:i1+ih,2-jh:j1+jh)  )
 
     thlprad = 0.
+    thlprSW = 0.
+    thlprLW = 0.
 
     swd = 0.
     swu = 0.
@@ -192,7 +196,7 @@ contains
     use mpi
     use modmpi, only: myid
     use modglobal, only : timee, dt_lim,rk3step
-    use modfields, only : thlp,qlrad
+    use modfields, only : thlp,qlrad,ql0
     use moduser,   only : rad_user
     use modradfull,only : radfull
     use modradrrtmg, only : radrrtmg
@@ -248,6 +252,7 @@ contains
     end if
 
     thlp = thlp + thlprad
+    qlrad = ql0
   end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine exitradiation
