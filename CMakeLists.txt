@@ -97,74 +97,66 @@ execute_process(COMMAND nf-config --includedir OUTPUT_VARIABLE NFCONFIG_INCLUDE_
 EXEC_PROGRAM(${CMAKE_CURRENT_SOURCE_DIR}/findnetcdf OUTPUT_VARIABLE ADDMODULEPATH)
 
 ### Find NetCDF files
-FIND_PATH(NETCDF_INCLUDE_DIR netcdf.mod NETCDF.mod
-  PATHS
+FIND_PATH(NETCDF_INCLUDE_DIR
+  NAMES netcdf.mod NETCDF.mod
+  HINTS
   ${NFCONFIG_INCLUDE_DIR}
   $ENV{SARA_NETCDF_INCLUDE}
   $ENV{SURFSARA_NETCDF_INCLUDE}
   $ENV{NETCDF_INCLUDE}
   ${ADDMODULEPATH}/include
-  /usr/include
   $ENV{HOME}/include
+  PATHS
+  /usr/include
   /usr/lib64/gfortran/modules
   DOC "NetCDF include directory (must contain netcdf.mod)"
 )
+MESSAGE(STATUS "Found NETCDF INCLUDE DIR as ${NETCDF_INCLUDE_DIR}")
 
 FIND_LIBRARY(NETCDF_C_LIB netcdf
-  PATHS
-  $ENV{SARA_NETCDF_LIB}
-  $ENV{SURFSARA_NETCDF_LIB}
-  $ENV{NETCDF_LIB}
-  ${ADDMODULEPATH}/lib
-  ${ADDMODULEPATH}/lib64
-  /usr/lib
-  /usr/lib64
-  $ENV{HOME}/lib
-  $ENV{HOME}/lib64
-  DOC "NetCDF C library"
-)
-
-FIND_LIBRARY(NETCDF_FORTRAN_LIB netcdff
-  PATHS
+  HINTS
   ${NFCONFIG_PREFIX}/lib
   $ENV{SARA_NETCDF_LIB}
   $ENV{SURFSARA_NETCDF_LIB}
   $ENV{NETCDF_LIB}
-  ${ADDMODULEPATH}/lib
-  ${ADDMODULEPATH}/lib64
-  /usr/lib
-  /usr/lib64
-  $ENV{HOME}/lib
-  $ENV{HOME}/lib64
+  ${ADDMODULEPATH}/lib ${ADDMODULEPATH}/lib64
+  $ENV{HOME}/lib $ENV{HOME}/lib64
+  PATHS /usr/lib /usr/lib64
+  DOC "NetCDF C library"
+)
+
+FIND_LIBRARY(NETCDF_FORTRAN_LIB netcdff
+  HINTS
+  ${NFCONFIG_PREFIX}/lib
+  $ENV{SARA_NETCDF_LIB}
+  $ENV{SURFSARA_NETCDF_LIB}
+  $ENV{NETCDF_LIB}
+  ${ADDMODULEPATH}/lib ${ADDMODULEPATH}/lib64
+  $ENV{HOME}/lib $ENV{HOME}/lib64
+  PATHS /usr/lib /usr/lib64
   DOC "NetCDF Fortran library"
 )
 
 # libHYPRE.a for static library
 FIND_LIBRARY(HYPRE_LIB HYPRE
-  PATHS
+  HINTS
   $ENV{HYPRE_LIB}
-  ${ADDMODULEPATH}/lib
-  ${ADDMODULEPATH}/lib64
-  /usr/lib
-  /usr/lib64
-  $ENV{HOME}/lib
-  $ENV{HOME}/lib64
+  ${ADDMODULEPATH}/lib ${ADDMODULEPATH}/lib64
+  $ENV{HOME}/lib $ENV{HOME}/lib64
+  PATHS /usr/lib /usr/lib64
   DOC "Iterative solver library"
 )
 
 FIND_PATH(FFTW_INCLUDE_DIR fftw3.f03
-  PATHS
-  $ENV{FFTW_INCLUDE_DIR}
-  /usr/include
+  HINTS $ENV{FFTW_INCLUDE_DIR}
+  PATHS /usr/include
   DOC "FFTW include files (fftw3.f03)"
 )
 
 #libfftw3.a for static library
 FIND_LIBRARY(FFTW_LIB fftw3
-  PATHS
-  $ENV{FFTW_LIB}
-  /usr/lib
-  /usr/lib64
+  HINTS $ENV{FFTW_LIB}
+  PATHS /usr/lib /usr/lib64
   DOC "FFTW static library"
 )
 
@@ -194,28 +186,18 @@ endif(NETCDF_FORTRAN_LIB)
 
 option(WITH_TENSTREAM "Include the tenstream solver for radiation" OFF)
 if(WITH_TENSTREAM)
-  if(  (NOT TENSTREAM_DIR)
-    OR (NOT TENSTREAM_BUILD_DIR) )
+  if(NOT TENSTREAM_DIR)
     message( STATUS "You asked to include the TENSTREAM solver, yet you did not specify a path to the library -- please set:")
-    message( STATUS " TENSTREAM_DIR         (root dir of tenstream solver) ")
-    message( STATUS " TENSTREAM_BUILD_DIR   (directory where you issued cmake&&make)" )
-    set(TENSTREAM_DIR       "" CACHE STRING "Tenstream base dir"            )
-    set(TENSTREAM_BUILD_DIR "" CACHE STRING "Tenstream build or install dir")
+    message( STATUS " TENSTREAM_DIR   (directory where you issued cmake && make or install dir)" )
     message( FATAL_ERROR " Tenstream Directory not set!" )
-  endif((NOT TENSTREAM_DIR) OR (NOT TENSTREAM_BUILD_DIR) )
-
-  set(CMAKE_C_FLAGS               ${USER_C_FLAGS} )
-  set(CMAKE_Fortran_FLAGS         ${USER_Fortran_FLAGS} )
-  set(CMAKE_Fortran_FLAGS_RELEASE ${USER_Fortran_FLAGS_RELEASE} )
-  set(CMAKE_Fortran_FLAGS_DEBUG   ${USER_Fortran_FLAGS_DEBUG})
+  endif(NOT TENSTREAM_DIR)
 
   # Add Tenstream
-  include_directories("${TENSTREAM_BUILD_DIR}/include/")
+  include_directories("${TENSTREAM_DIR}/include/")
 
-  #set (TENSTREAM_LIBS "pprts_rrtmg" "pprts_rrtm_lw" "pprts_rrtm_sw" "pprts" "pprts_base")
   set (TENSTREAM_LIBS "tenstream")
   foreach (LIB ${TENSTREAM_LIBS})
-    FIND_LIBRARY(TENSTREAM_LIBRARY_${LIB} "${LIB}" "${TENSTREAM_BUILD_DIR}/lib/")
+    FIND_LIBRARY(TENSTREAM_LIBRARY_${LIB} "${LIB}" "${TENSTREAM_DIR}/lib/")
     list(APPEND LIBS "${TENSTREAM_LIBRARY_${LIB}}")
   endforeach(LIB)
   message( STATUS "Adding TenStream libs: ${LIBS}")
