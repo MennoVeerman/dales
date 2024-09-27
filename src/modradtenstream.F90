@@ -55,6 +55,7 @@ module modradtenstream
   logical,parameter :: ldebug=.False.
 !  logical,parameter :: ldebug=.True.
   type(t_solver_3_10) :: pprts_solver
+  type(t_tenstr_atm) :: atm
 
 contains
 
@@ -83,7 +84,6 @@ contains
     real :: reff_factor, ilratio, tempC, IWC0, B_function, rho_atm
     real(ireals), parameter :: solar_min_sza=85 ! minimum solar zenith angle -- below, dont compute solar rad
     real(ireals), parameter :: rho_liq = 1000  
-    type(t_tenstr_atm) :: atm
      
     IWC0 = 50e-3
     reff_factor = real(1.e6 * (3. /(4.*pi*Nc_0*rho_liq) )**(1./3.) * exp(log(sig_g)**2), ireals)
