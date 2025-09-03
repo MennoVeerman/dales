@@ -150,17 +150,17 @@ SAVE
   real, allocatable :: CO2flux(:,:)        !<  Surface flux of CO2 as calculated by AGS
 
   !AGS variables
-  real              :: CO2comp298 =   68.5 !<  CO2 compensation concentration
-  real              :: Q10CO2     =    1.5 !<  Parameter to calculate the CO2 compensation concentration
-  real              :: gm298      =    7.0 !<  Mesophyll conductance at 298 K
+  real              :: CO2comp298 =  62.93 !<  CO2 compensation concentration (default was 68.5)
+  real              :: Q10CO2     =    2.0 !<  Parameter to calculate the CO2 compensation concentration (default was 1.5)
+  real              :: gm298      =   2.65 !<  Mesophyll conductance at 298 K (default was 7.0)
   real              :: Q10gm      =    2.0 !<  Parameter to calculate the mesophyll conductance
   real              :: T1gm       =  278.0 !<  Reference temperature to calculate the mesophyll conductance
-  real              :: T2gm       =  301.0 !<  Reference temperature to calculate the mesophyll conductance
+  real              :: T2gm       =  311.0 !<  Reference temperature to calculate the mesophyll conductance (default was 301)
   real              :: gmin       = 2.5e-4 !<  Cuticular (minimum) conductance
   real              :: nuco2q     =    1.6 !<  Ratio molecular viscosity water to carbon dioxide
   real              :: f0         =   0.89 !<  Maximum value Cfrac
   real              :: ad         =   0.07 !<  Regression coefficient to calculate Cfrac
-  real              :: Ammax298   =    2.2 !<  CO2 maximal primary productivity
+  real              :: Ammax298   =  0.780 !<  CO2 maximal primary productivity (default was 2.2)
   real              :: Q10am      =    2.0 !<  Parameter to calculate maximal primary productivity
   real              :: T1Am       =    281 !<  Reference temperature to calculate maximal primary productivity
   real              :: T2Am       =    311 !<  Reference temperature to calculate maximal primary productivity

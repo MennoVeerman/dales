@@ -252,17 +252,31 @@ contains
       call MPI_BCAST(padfactor, npaddistr, my_real , 0, comm3d, mpierr)
 
     else                 !< Standard profile fron Ned Patton
-      padfactor = (/ 0.4666666666666667, &
-                     0.5307086614173228, &
-                     0.6792650918635170, &
-                     0.9548556430446193, &
-                     1.3154855643044620, &
-                     1.5490813648293960, &
-                     1.5916010498687660, &
-                     1.5275590551181100, &
-                     1.2944881889763780, &
-                     0.3236220472440945, &
+
+      padfactor = (/ 0.4259088000000000, &
+                     1.3781192000000000, &
+                     0.6199392500000000, &
+                     0.8714601900000000, &
+                     1.2005933200000000, &
+                     1.4137872600000000, &
+                     1.4525933500000000, &
+                     1.3941446800000000, &
+                     1.1814298200000000, &
+                     0.2953574500000000, &
                      0.0000000000000000  /)
+
+
+      !padfactor = (/ 0.4666666666666667, &
+      !               0.5307086614173228, &
+      !               0.6792650918635170, &
+      !               0.9548556430446193, &
+      !               1.3154855643044620, &
+      !               1.5490813648293960, &
+      !               1.5916010498687660, &
+      !               1.5275590551181100, &
+      !               1.2944881889763780, &
+      !               0.3236220472440945, &
+      !               0.0000000000000000  /)
     endif
     f_lai_h = lai_can / zh(1+ncanopy) ! LAI of canopy divided by height of the top of the canopy
    
@@ -1069,7 +1083,7 @@ subroutine leafeb_ags(i_s, i_r, eps, transpiretype, lwidth, llength,   & ! incom
        
        real    :: Fleaf
        real    :: fstr,Am,Rdark,alphac,co2abs,CO2comp,Ds,D0,fmin
-       real    :: i_PAR   ! absorbed PAR [W m-2] (so far, assumed PAR = 0.5 SW)
+       real    :: i_PAR   ! absorbed PAR [W m-2] (previously assumed to be  PAR = 0.5 SW, now based on Amazon obs PAR = 0.44 SW)
        ! --- others
 
        real :: humidairkgm3
@@ -1125,7 +1139,8 @@ subroutine leafeb_ags(i_s, i_r, eps, transpiretype, lwidth, llength,   & ! incom
 
        tdelt = tleaf_l - tairk            ! --- current delta_T = T_leaf - T_air [K]
        !assume SW=2.0*PAR
-       i_PAR = 0.5*max(0.1,abs(i_s))
+       !i_PAR = 0.5*max(0.1,abs(i_s))
+       i_PAR = 0.44*max(0.1,abs(i_s))
        call f_Ags(CO2air,qtair,rho,tairk,pres,tleaf_l,                & ! in
                   phi_tot,i_PAR,                                      & ! in
                   lrelaxgc_can,gccan_old_set,kgc_can,gcc_old,rk3coef, & ! in

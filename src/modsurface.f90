@@ -140,7 +140,7 @@ contains
     call MPI_BCAST(rssoilminav  , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(cvegav       , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(Wlav         , 1, MY_REAL, 0, comm3d, mpierr)
-    call MPI_BCAST(LAI_surfav        , 1, MY_REAL, 0, comm3d, mpierr)
+    call MPI_BCAST(LAI_surfav   , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(gDav         , 1, MY_REAL, 0, comm3d, mpierr)
 
     call MPI_BCAST(z0         ,1,MY_REAL   ,0,comm3d,mpierr)
@@ -1867,16 +1867,21 @@ contains
           
           endif !linags
           if (lsplitleaf) then
-            PARdir_TOV = 0.5 * max(0.1,abs(swdir(i,j,1)))
-            PARdif_TOV = 0.5 * max(0.1,abs(swdif(i,j,1)))
+            !PARdir_TOV = 0.5 * max(0.1,abs(swdir(i,j,1)))
+            !PARdif_TOV = 0.5 * max(0.1,abs(swdif(i,j,1)))
+            PARdir_TOV = 0.44 * max(0.1,abs(swdir(i,j,1)))
+            PARdif_TOV = 0.44 * max(0.1,abs(swdif(i,j,1)))
             call canopyrad(nz_gauss,LAI_surf(i,j),LAI_surf(i,j)*LAI_g,PARdir_TOV,PARdif_TOV,albedo_surf(i,j),1.0,surfrad_meth,& ! in! 
                  PARleaf_shad,PARleaf_sun,fSL,& 
                  albdir_lsplit(i,j),albdif_lsplit(i,j),albswd_lsplit(i,j),&
                  PARdir_lsplit(:nz_gauss),PARdif_lsplit(:nz_gauss),PARu_lsplit(:nz_gauss),absPAR_ground)! could be coupled to radiation
-            !assume SW = 2.0*PAR
-            swdir_lsplit(i,j,:nz_gauss) = 2.0 * PARdir_lsplit(:nz_gauss)
-            swdif_lsplit(i,j,:nz_gauss) = 2.0 * PARdif_lsplit(:nz_gauss)
-            swu_lsplit  (i,j,:nz_gauss) = 2.0 * PARu_lsplit  (:nz_gauss)
+            !previously we assumed SW = 2.0*PAR, now we assume SW = 1/0.44*PAR
+            !swdir_lsplit(i,j,:nz_gauss) = 2.0 * PARdir_lsplit(:nz_gauss)
+            !swdif_lsplit(i,j,:nz_gauss) = 2.0 * PARdif_lsplit(:nz_gauss)
+            !swu_lsplit  (i,j,:nz_gauss) = 2.0 * PARu_lsplit  (:nz_gauss)
+            swdir_lsplit(i,j,:nz_gauss) = 1/0.44 * PARdir_lsplit(:nz_gauss)
+            swdif_lsplit(i,j,:nz_gauss) = 1/0.44 * PARdif_lsplit(:nz_gauss)
+            swu_lsplit  (i,j,:nz_gauss) = 1/0.44 * PARu_lsplit  (:nz_gauss)
             do itg = 1,nz_gauss
               !shaded
               call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j),  & ! in
@@ -1945,7 +1950,8 @@ contains
              ! and for understory vegetation:
             
             !upscaling following Ronda et al
-            PAR      = 0.50 * max(0.1,abssw_ground) !assume 50% of SW absorbed is PAR
+            !PAR      = 0.50 * max(0.1,abssw_ground) !assume 50% of SW absorbed is PAR
+            PAR       = 0.44 * max(0.1,abssw_ground) !assume 44% of SW absorved is PAR
             call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j),& ! in
                        phitot(i,j),PAR, & ! in
                        lrelaxgc_surf,gcsurf_old_set,kgc_surf,gc_old(i,j),rk3coef,   & ! in
