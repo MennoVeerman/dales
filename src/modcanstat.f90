@@ -45,63 +45,63 @@ save
 !     ------
 
 !   --------------
-  real, allocatable :: shcanav         (:)   
-  real, allocatable :: lecanav         (:)  
-  real, allocatable :: fco2canav       (:)       
-  real, allocatable :: sthetaav        (:)  
-  real, allocatable :: sqtav           (:) 
-  real, allocatable :: sco2av          (:)  
-  real, allocatable :: t_leafshadav    (:)  
-  real, allocatable :: t_leafsunav     (:)  
-  real, allocatable :: gcc_leafshadav  (:)  
-  real, allocatable :: gcc_leafsunav   (:)  
-  real, allocatable :: ci_leafshadav  (:)  
-  real, allocatable :: ci_leafsunav   (:)  
-  real, allocatable :: sh_leafshadav   (:)  
-  real, allocatable :: sh_leafsunav    (:)  
-  real, allocatable :: le_leafshadav   (:)  
-  real, allocatable :: le_leafsunav    (:)  
-  real, allocatable :: An_leafshadav   (:)  
-  real, allocatable :: An_leafsunav    (:)  
-  real, allocatable :: rb_leafshadav   (:)  
-  real, allocatable :: rb_leafsunav    (:)  
-  real, allocatable :: LWin_leafshadav (:)  
-  real, allocatable :: LWin_leafsunav  (:)  
-  real, allocatable :: LWout_leafshadav(:)  
-  real, allocatable :: LWout_leafsunav (:)  
+  real, allocatable :: shcanav         (:)
+  real, allocatable :: lecanav         (:)
+  real, allocatable :: fco2canav       (:)
+  real, allocatable :: sthetaav        (:)
+  real, allocatable :: sqtav           (:)
+  real, allocatable :: sco2av          (:)
+  real, allocatable :: t_leafshadav    (:)
+  real, allocatable :: t_leafsunav     (:)
+  real, allocatable :: gcc_leafshadav  (:)
+  real, allocatable :: gcc_leafsunav   (:)
+  real, allocatable :: ci_leafshadav  (:)
+  real, allocatable :: ci_leafsunav   (:)
+  real, allocatable :: sh_leafshadav   (:)
+  real, allocatable :: sh_leafsunav    (:)
+  real, allocatable :: le_leafshadav   (:)
+  real, allocatable :: le_leafsunav    (:)
+  real, allocatable :: An_leafshadav   (:)
+  real, allocatable :: An_leafsunav    (:)
+  real, allocatable :: rb_leafshadav   (:)
+  real, allocatable :: rb_leafsunav    (:)
+  real, allocatable :: LWin_leafshadav (:)
+  real, allocatable :: LWin_leafsunav  (:)
+  real, allocatable :: LWout_leafshadav(:)
+  real, allocatable :: LWout_leafsunav (:)
   real, allocatable :: absSWleaf_shadav(:)
   real, allocatable :: absSWleaf_allsunav(:)
   real, allocatable :: absSWlayerav    (:)
-  real, allocatable :: cfSLav          (:)  
-  
-  real, allocatable :: shcanmn  (:)   
-  real, allocatable :: lecanmn  (:)  
-  real, allocatable :: fco2canmn(:)       
-  real, allocatable :: sthetamn (:)  
-  real, allocatable :: sqtmn    (:) 
-  real, allocatable :: sco2mn   (:)  
-  real, allocatable :: t_leafshadmn   (:)  
-  real, allocatable :: t_leafsunmn    (:)  
-  real, allocatable :: gcc_leafshadmn (:)  
-  real, allocatable :: gcc_leafsunmn  (:)  
-  real, allocatable :: ci_leafshadmn (:)  
-  real, allocatable :: ci_leafsunmn  (:)  
-  real, allocatable :: sh_leafshadmn (:)  
-  real, allocatable :: sh_leafsunmn  (:)  
-  real, allocatable :: le_leafshadmn (:)  
-  real, allocatable :: le_leafsunmn  (:)  
-  real, allocatable :: An_leafshadmn (:)  
-  real, allocatable :: An_leafsunmn  (:)  
-  real, allocatable :: rb_leafshadmn (:)  
-  real, allocatable :: rb_leafsunmn  (:)  
-  real, allocatable :: LWin_leafshadmn (:)  
-  real, allocatable :: LWin_leafsunmn  (:)  
-  real, allocatable :: LWout_leafshadmn (:)  
-  real, allocatable :: LWout_leafsunmn  (:)  
-  real, allocatable :: absSWleaf_shadmn(:)  
-  real, allocatable :: absSWleaf_allsunmn(:)  
-  real, allocatable :: absSWlayermn(:)  
-  real, allocatable :: cfSLmn   (:)  
+  real, allocatable :: cfSLav          (:)
+
+  real, allocatable :: shcanmn  (:)
+  real, allocatable :: lecanmn  (:)
+  real, allocatable :: fco2canmn(:)
+  real, allocatable :: sthetamn (:)
+  real, allocatable :: sqtmn    (:)
+  real, allocatable :: sco2mn   (:)
+  real, allocatable :: t_leafshadmn   (:)
+  real, allocatable :: t_leafsunmn    (:)
+  real, allocatable :: gcc_leafshadmn (:)
+  real, allocatable :: gcc_leafsunmn  (:)
+  real, allocatable :: ci_leafshadmn (:)
+  real, allocatable :: ci_leafsunmn  (:)
+  real, allocatable :: sh_leafshadmn (:)
+  real, allocatable :: sh_leafsunmn  (:)
+  real, allocatable :: le_leafshadmn (:)
+  real, allocatable :: le_leafsunmn  (:)
+  real, allocatable :: An_leafshadmn (:)
+  real, allocatable :: An_leafsunmn  (:)
+  real, allocatable :: rb_leafshadmn (:)
+  real, allocatable :: rb_leafsunmn  (:)
+  real, allocatable :: LWin_leafshadmn (:)
+  real, allocatable :: LWin_leafsunmn  (:)
+  real, allocatable :: LWout_leafshadmn (:)
+  real, allocatable :: LWout_leafsunmn  (:)
+  real, allocatable :: absSWleaf_shadmn(:)
+  real, allocatable :: absSWleaf_allsunmn(:)
+  real, allocatable :: absSWlayermn(:)
+  real, allocatable :: cfSLmn   (:)
 
 contains
 !> Initialization routine, reads namelists and inits variables
@@ -156,7 +156,7 @@ contains
     if (.not. ladaptive .and. abs(dtav/dtmax-nint(dtav/dtmax))>1e-4) then
       stop 'dtav should be a integer multiple of dtmax'
     end if
-    
+
     allocate(shcanav  (ncanopy))
     allocate(lecanav  (ncanopy))
     allocate(fco2canav(ncanopy))
@@ -490,13 +490,13 @@ contains
       do k=1,ncanopy
         write(ifoutput,'(I4,2F10.2,10E13.4,2F9.3,2E13.4,2F9.3,8E13.4,7F9.3)') &
             k,zf(k),zh(k),padf(k),pai(k),paih(k),&
-            cfSLmn(k),            & 
+            cfSLmn(k),            &
             shcanmn(k),           &
             lecanmn(k),           &
             fco2canmn(k),         &
-            sthetamn(k),          & 
-            sqtmn(k),             &  
-            sco2mn(k),            &  
+            sthetamn(k),          &
+            sqtmn(k),             &
+            sco2mn(k),            &
             t_leafshadmn(k),      &
             t_leafsunmn(k),       &
             gcc_leafshadmn(k),    &
@@ -505,8 +505,8 @@ contains
             ci_leafsunmn(k),      &
             sh_leafshadmn(k),     &
             sh_leafsunmn(k),      &
-            le_leafshadmn(k),     &  
-            le_leafsunmn(k),      & 
+            le_leafshadmn(k),     &
+            le_leafsunmn(k),      &
             An_leafshadmn(k),     &
             An_leafsunmn(k),      &
             rb_leafshadmn(k),     &
@@ -517,7 +517,7 @@ contains
             LWout_leafsunmn(k),   &
             absSWleaf_shadmn(k),  &
             absSWleaf_allsunmn(k),&
-            absSWlayermn(k)      
+            absSWlayermn(k)
       end do
       close (ifoutput)
 
