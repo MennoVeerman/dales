@@ -738,9 +738,8 @@ contains
 !                            |
 ! half level k_can    -------v-- lwd
 !
-      !  area-weighted average between sunlit and shaded leaves
-
-      lw_leaflayer = LWout_leafsun(i,j,k_can)*cfSL(k_can) + LWout_leafshad(i,j,k_can)*(1.-cfSL(k_can)) ! at full level
+      !  area-weighted average between sunlit and shaded leaves. Divide total leaf emission by 2, because half is going upward and half is going downward.
+      lw_leaflayer = (LWout_leafsun(i,j,k_can)*cfSL(k_can) + LWout_leafshad(i,j,k_can)*(1.-cfSL(k_can))) / 2.0 ! at full level
       if (PA(k_can) < 1.0) then ! area-weighted average between background lw and leaf
         lwd_can(k_can) = lwd_air * (1.0-PA(k_can)) + lw_leaflayer * PA(k_can)
         lwu_can(k_can+1) = lwu_air * (1.0-PA(k_can)) + lw_leaflayer * PA(k_can) ! of the level above
