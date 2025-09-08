@@ -203,6 +203,7 @@ contains
         do i=2,i1
           lwd(i,j,1) =  -0.8 * boltz * thl0(i,j,1) ** 4.
           lwu(i,j,1) =  1.0 * boltz * tskin_rad(i,j) ** 4.
+          lwu(i,j,2:k1) =  0.0 !Overwrite (canopy) lwu from previous timestep, no longwave means 0 upwelling fluxes
         end do
       end if
 

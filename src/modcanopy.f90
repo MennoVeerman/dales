@@ -713,7 +713,7 @@ contains
       Fco2_can(i,j,k_can)   = (An_leafsun(i,j,k_can)  * cfSL(k_can) + An_leafshad(i,j,k_can)  * (1.-cfSL(k_can)))*  padf(k_can)
     end do
     !convert sources to tendencies
-    S_theta(i,j,1:ncanopy)   = sh_can(i,j,1:ncanopy)/(rhof(1:ncanopy)*cp*exnf) !
+    S_theta(i,j,1:ncanopy)   = sh_can(i,j,1:ncanopy)/(rhof(1:ncanopy)*cp*exnf(1:ncanopy)) !
     S_qt(i,j,1:ncanopy)      = le_can(i,j,1:ncanopy)/(rhof(1:ncanopy)*rlv)
     S_co2(i,j,1:ncanopy)     = Fco2_can(i,j,1:ncanopy)*(MW_Air/MW_CO2) * (1.0/rhof(1:ncanopy))* 1000 !In  ppb/s
 
