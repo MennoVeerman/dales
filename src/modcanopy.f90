@@ -428,6 +428,8 @@ contains
     endif ! not def_LWcan
     !initialize tleaf with tair temps
     do k=1,ncanopy
+      t_leafsun(:,:,k)  = tmp0(:,:,k)
+      t_leafshad(:,:,k) = tmp0(:,:,k)
       t_leafsun_old(:,:,k)  = tmp0(:,:,k)
       t_leafshad_old(:,:,k) = tmp0(:,:,k)
     enddo
@@ -635,17 +637,65 @@ contains
     enddo
 
     if(def_LWcan) then ! we need to build a LW profile according to air characteristics
-      do k_can =1,ncanopy
-        LWin = unexposedleafLWin(tmp0(i,j,k_can), leaf_eps) ! shouldn we use air eps?
-        LWin_leafshad(i,j,k_can)  = 2. * LWin
-        ! we take values above canopy, not from k_can
-        LWin_leafsun(i,j,k_can)   = 0.5 * exposedleafLWin_cor(humidairpa(k_can:k_can+50),i,j,k_can) + 1.5 * LWin !
+      !
+      ! ### Old version: LW into leaf from local air temperature
+      !
+
+      !do k_can =1,ncanopy
+      !  LWin = unexposedleafLWin(tmp0(i,j,k_can), leaf_eps) ! shouldn we use air eps?
+      !  LWin_leafshad(i,j,k_can)  = 2. * LWin
+      !  ! we take values above canopy, not from k_can
+      !  LWin_leafsun(i,j,k_can)   = 0.5 * exposedleafLWin_cor(humidairpa(k_can:k_can+50),i,j,k_can) + 1.5 * LWin !
+      !end do
+
+
+      !
+      ! ### New version: LW into leaf from fluxes based on current (= previous time step) temperatures
+      !
+
+      ! downwelling LW irradiance at top of canopy
+      if (iradiation==irad_lsm .or.((iradiation==irad_par .or. iradiation==irad_rrtmg ).and. rad_longw .eqv. .false.)) then ! there is no LW calculated by radiation
+        !! situation without LW scheme should be revised
+        lwd_can(ncanopy+1) = unexposedleafLWin(tmp0(i,j,ncanopy), leaf_eps)
+      else ! get LW calculated by rad scheme, here positive for any rad scheme
+        lwd_can(ncanopy+1) = abs(lwd(i,j,ncanopy+1))
+      endif
+
+      ! downwelling loop from top to bottom of canopy
+      do k_can = ncanopy, 1, -1
+        ! area-weighted average between sunlit and shaded leaves. Divide total leaf emission by 2, because half is going upward and half is going downward.
+        lw_leaflayer(k_can) = (leafLWout(t_leafsun(i,j,k_can), leaf_eps)*cfSL(k_can) + leafLWout(t_leafshad(i,j,k_can), leaf_eps)*(1.-cfSL(k_can))) / 2.
+        if (PA(k_can) < 1.0) then ! area-weighted average between background lw and leaf
+          lwd_can(k_can) = lwd_can(k_can+1) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwd_can(k_can+1))
+        else
+        ! since we assume that both sides of the leaf are at the same temperature
+          lwd_can(k_can)   = lw_leaflayer(k_can)
+        endif
       end do
+
+      ! surface upwelling LW irradiance
+      ! use tskin*exner (tskin=thl, so convert to absolute temperature) for emission and account for reflection (1-emis):
+      exner = (ps/pref0) ** (rd/cp)
+      lwu_can(1) =  sfc_emis * boltz * (tskinm_surf(i,j) * exner) ** 4. + (1-sfc_emis) * lwd_can(1)
+
+      ! upwelling loop from bottom to top of canopy
+      do k_can = 1, ncanopy
+        if (PA(k_can) < 1.0) then
+            lwu_can(k_can+1) = lwu_can(k_can) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwu_can(k_can))
+        else
+            lwu_can(k_can+1) = lw_leaflayer(k_can)
+        endif
+        LWin_leafshad(i,j,k_can) = leaf_eps * (lwu_can(k_can) + lwd_can(k_can+1))
+        LWin_leafsun(i,j,k_can) = leaf_eps * (lwu_can(k_can) + lwd_can(k_can+1))
+      end do
+
     endif
 
-   !                                                                                                !
-   !######### STEP 2 - Leaf energy balance per level for sunlit and shaded leaves ####################
-   !                                                                                                !
+
+
+    !                                                                                                !
+    !######### STEP 2 - Leaf energy balance per level for sunlit and shaded leaves ####################
+    !                                                                                                !
     windsp(:) = sqrt(u0(i,j,1:ncanopy)**2+v0(i,j,1:ncanopy)**2)
     do k_can =1,ncanopy
      !shaded
