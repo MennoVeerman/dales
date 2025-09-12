@@ -583,10 +583,10 @@ contains
    ! Patton and have been adapted, modified or extended where needed.
    !                                                      Xabier Pedruzo, 2020
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,xday,xlat,xlon,boltz
+    use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt
     use modsurfdata,only : phitot,weight_g,indCO2,albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad,nuco2q,pCw,tskinm_surf
     use modfields, only  : thl0,rhof,qt0,exnf,u0,v0,presf,svm,tmp0
-    use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith
+    use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad
     implicit none
 
     integer, intent(in) :: i,j
@@ -765,8 +765,11 @@ contains
         swd  (i,j,:ncanopy) = swdir_can(:ncanopy) + swdif_can(:ncanopy)
         swu  (i,j,:ncanopy) = swu_can(:ncanopy)
       endif
-      lwd  (i,j,:ncanopy) = lwd_can(:ncanopy)
-      lwu  (i,j,:ncanopy+1) = lwu_can(:ncanopy+1)
+      ! update longwave in time steps with radiation
+      if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
+        lwd  (i,j,:ncanopy) = lwd_can(:ncanopy)
+        lwu  (i,j,:ncanopy+1) = lwu_can(:ncanopy+1)
+      endif
     else
       if (sinbeta>0.035) then ! day:
         swdir(i,j,:ncanopy) = -swdir_can(:ncanopy)
@@ -774,8 +777,11 @@ contains
         swd  (i,j,:ncanopy) = -(swdir_can(:ncanopy) + swdif_can(:ncanopy))
         swu  (i,j,:ncanopy) = swu_can(:ncanopy)               !should be on
       endif
-      lwd  (i,j,:ncanopy) = -lwd_can(:ncanopy)
-      lwu  (i,j,:ncanopy+1) = lwu_can(:ncanopy+1)  !should be on
+      ! update longwave in time steps with radiation
+      if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
+        lwd  (i,j,:ncanopy) = -lwd_can(:ncanopy)
+        lwu  (i,j,:ncanopy+1) = lwu_can(:ncanopy+1)  !should be on
+      endif
     endif
    ! we do not account for absortion, scattering or other processes by air particles inside
    !canopy, so air temperature tendency needs to be exactly 0 inside canopy

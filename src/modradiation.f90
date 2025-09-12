@@ -201,7 +201,7 @@ contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine radiation
-    use modglobal, only : timee, dt_lim,rk3step
+    use modglobal, only : timee, dt, dt_lim,rk3step
     use modfields, only : thlp,thl0
     use moduser,   only : rad_user
     use modradfull,only : radfull
@@ -211,8 +211,10 @@ contains
     if(timee<tnext .and. rk3step==3) then
       dt_lim = min(dt_lim,tnext-timee)
     end if
-    if((itimerad==0 .or. timee==tnext) .and. rk3step==1) then
-      tnext = tnext+itimerad
+
+    if(((itimerad==0 .or. timee==tnext) .and. rk3step==1) .or. (timee==dt)) then
+      if (timee == tnext) tnext = tnext+itimerad
+
       thlprad = 0.0
       select case (iradiation)
           case (irad_none)
