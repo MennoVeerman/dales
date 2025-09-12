@@ -46,7 +46,7 @@ contains
     namelist/NAMRADIATION/ &
       lCnstZenith, cnstZenith, lCnstAlbedo, ioverlap, &
       inflglw, iceflglw, liqflglw, inflgsw, iceflgsw, liqflgsw, &
-      ocean, usero3, co2factor, doperpetual, doseasons, iyear, kmin_rad
+      ocean, usero3, co2factor, doperpetual, doseasons, iyear, sfc_emis, kmin_rad, radcanoffset
 
     if(myid==0)then
       open(ifnamopt,file=fname_options,status='old',iostat=ierr)
@@ -75,23 +75,25 @@ contains
     call MPI_BCAST(iDE,1,MPI_INTEGER,0,comm3d,ierr)
     call MPI_BCAST(laero,1,MPI_LOGICAL,0,comm3d,ierr)
 
-    call MPI_BCAST(lCnstZenith,1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(cnstZenith, 1,my_real,    0,comm3d,ierr)
-    call MPI_BCAST(lCnstAlbedo,1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(ioverlap,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(inflglw,    1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(iceflglw,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(liqflglw,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(inflgsw,    1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(iceflgsw,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(liqflgsw,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(ocean,      1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(usero3,     1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(co2factor,  1,my_real,    0,comm3d,ierr)
-    call MPI_BCAST(doperpetual,1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(doseasons,  1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(iyear,      1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(kmin_rad,   1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(lCnstZenith, 1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(cnstZenith,  1,my_real,    0,comm3d,ierr)
+    call MPI_BCAST(lCnstAlbedo, 1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(ioverlap,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(inflglw,     1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(iceflglw,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(liqflglw,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(inflgsw,     1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(iceflgsw,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(liqflgsw,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(ocean,       1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(usero3,      1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(co2factor,   1,my_real,    0,comm3d,ierr)
+    call MPI_BCAST(doperpetual, 1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(doseasons,   1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(iyear,       1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(sfc_emis,    1,my_real    ,0,comm3d,ierr)
+    call MPI_BCAST(kmin_rad,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(radcanoffset,1,MPI_LOGICAL,0,comm3d,ierr)
 
     allocate(thlprad   (2-ih:i1+ih,2-jh:j1+jh,k1) )
     allocate(swd       (2-ih:i1+ih,2-jh:j1+jh,k1) )
@@ -136,7 +138,7 @@ contains
     swdir = 0.
     swdif = 0.
     lwc   = 0.
-    
+
     albedo_rad = 0.
     tskin_rad  = 0.
     qskin_rad  = 0.
@@ -251,7 +253,7 @@ contains
     deallocate(thlprad,swd,swdir,swdif,swu,lwd,lwu,swdca,swuca,lwdca,lwuca,lwc)
     deallocate(SW_up_TOA, SW_dn_TOA,LW_up_TOA,LW_dn_TOA, &
                SW_up_ca_TOA,SW_dn_ca_TOA,LW_up_ca_TOA,LW_dn_ca_TOA)
-    deallocate(albedo_rad,tskin_rad,qskin_rad)           
+    deallocate(albedo_rad,tskin_rad,qskin_rad)
 
   end subroutine exitradiation
 

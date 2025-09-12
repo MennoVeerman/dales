@@ -586,7 +586,7 @@ contains
     use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt
     use modsurfdata,only : phitot,weight_g,indCO2,albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad,nuco2q,pCw,tskinm_surf
     use modfields, only  : thl0,rhof,qt0,exnf,u0,v0,presf,svm,tmp0
-    use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad
+    use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad,sfc_emis
     implicit none
 
     integer, intent(in) :: i,j
