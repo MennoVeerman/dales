@@ -325,7 +325,7 @@ subroutine radpar
     end do
     end do  ! end i,j loop
 
-  else ! LW at surface 
+  else ! LW at surface
     do j=2,j1
     do i=2,i1
       lwd(i,j,1) =  0.8 * boltz * thl0(i,j,1) ** 4.
@@ -349,7 +349,7 @@ subroutine radpar
       if (mu > 0.035) then  !factor 0.035 needed for security
         tauc = 0.           ! column-integrated tau cloud
         if (laero .or. lcloudshading) then ! not sure if I have to define the use of lcldoushading before
-          do k = 1,kmax        
+          do k = 1,kmax
             tau(k) = 0.      ! tau laagje dz
             if(laero) then ! there are aerosols
               tau(k) = sv0(i,j,k,iDE)

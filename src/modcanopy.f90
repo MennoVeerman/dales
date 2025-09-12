@@ -748,9 +748,11 @@ contains
         lwd_can(k_can)   = lw_leaflayer
         lwu_can(k_can+1) = lw_leaflayer
       endif
+
     end do
-    ! for lowest lwu, use tskin as done for irad_par:
-    lwu_can(1) =  1.0 * boltz * tskinm_surf(i,j) ** 4.
+    ! for lowest lwu, use tskin for emission and account for reflection (1-emis):
+    lwu_can(1) =  sfc_emis * boltz * tskinm_surf(i,j) ** 4. + (1-sfc_emis) * lwd_can(1)
+
    !                                                                                                !
    !######### STEP 5 - Pass on variables needed to radiation ####################
    !
