@@ -142,6 +142,7 @@ module modcanopy
   real, allocatable :: PARu_can         (:) !< upwards PAR through canopy
   real, allocatable :: lwd_can         (:) !< downwards LW through canopy
   real, allocatable :: lwu_can         (:) !< upwards LW through canopy
+  real, allocatable :: lw_leaflayer    (:) !< LW emission by leaves per layer
 contains
 !-----------------------------------------------------------------------------------------
   SUBROUTINE initcanopy
@@ -382,6 +383,7 @@ contains
     allocate(PARu_can  (ncanopy+1))
     allocate(lwd_can(ncanopy+1))
     allocate(lwu_can(ncanopy+1))
+    allocate(lw_leaflayer(ncanopy))
 
     PARdir_can = 0
     PARdif_can = 0
@@ -391,6 +393,7 @@ contains
     swu_can   = 0
     lwd_can   = 0
     lwu_can   = 0
+    lw_leaflayer = 0
 
     do k=1,ncanopy
        PA(k) = padh(k) * dzh(k)!  Plant Area at full levels[m2!PA2
@@ -566,6 +569,7 @@ contains
     deallocate(PARu_can)
     deallocate(lwd_can)
     deallocate(lwu_can)
+    deallocate(lw_leaflayer)
     return
   end subroutine exitcanopy
   subroutine canopyeb(i,j,ps,rk3coef, &! in
@@ -596,7 +600,7 @@ contains
     real    :: LWin,paf
 !    real    ::PARdirTOC,PARdifTOC
     real    :: SWdirTOC,SWdifTOC
-    real    :: lwu_air,lwd_air,lw_leaflayer,kdrbl,sinbeta, exner
+    real    :: lwu_air,lwd_air,kdrbl,sinbeta, exner
    !                                                                  !
    !######### STEP 1 - Radiation inside the canopy, part1  ####################
    !                                                                  !
@@ -721,37 +725,47 @@ contains
    !
 
     ! assume for LW that leaves/plants form one horizontal layer (minimum overlap) in each grid and LW only moves upwards and downwards
-    do k_can = 1,ncanopy
-      !get plant area (m2leaf per m2 ground) in a grid at half levels)
-      if (iradiation==irad_lsm .or.((iradiation==irad_par .or. iradiation==irad_rrtmg ).and. rad_longw .eqv. .false.)) then ! there is no LW calculated by radiation
-        lwd_air = unexposedleafLWin(tmp0(i,j,k_can), leaf_eps)
-        lwu_air = lwd_air
-      else ! get LW calculated by rad scheme, here positive for any rad scheme
-        lwd_air = abs(lwd(i,j,k_can))
-        lwu_air = abs(lwu(i,j,k_can+1)) ! of the half level  above
-      endif
 
-! half level k_can+1  -------^-- lwu
-!                            |
-! full level k_can    ********** lw_leaflayer,LWout_leafsun,cfSL
-!                            |
-! half level k_can    -------v-- lwd
-!
-      !  area-weighted average between sunlit and shaded leaves. Divide total leaf emission by 2, because half is going upward and half is going downward.
-      lw_leaflayer = (LWout_leafsun(i,j,k_can)*cfSL(k_can) + LWout_leafshad(i,j,k_can)*(1.-cfSL(k_can))) / 2.0 ! at full level
+    ! downwelling LW irradiance at top of canopy
+    if (iradiation==irad_lsm .or.((iradiation==irad_par .or. iradiation==irad_rrtmg ).and. rad_longw .eqv. .false.)) then ! there is no LW calculated by radiation
+      !! situation without LW scheme should be revised
+      lwd_can(ncanopy+1) = unexposedleafLWin(tmp0(i,j,ncanopy), leaf_eps)
+    else ! get LW calculated by rad scheme, here positive for any rad scheme
+      lwd_can(ncanopy+1) = abs(lwd(i,j,ncanopy+1))
+    endif
+
+    ! half level k_can+1  -------^-- lwu
+    !                            |
+    ! full level k_can    ********** lw_leaflayer,LWout_leafsun,cfSL
+    !                            |
+    ! half level k_can    -------v-- lwd
+    !
+
+    ! downwelling loop from top to bottom of canopy
+    do k_can = ncanopy, 1, -1
+      ! area-weighted average between sunlit and shaded leaves. Divide total leaf emission by 2, because half is going upward and half is going downward.
+      lw_leaflayer(k_can) = (LWout_leafsun(i,j,k_can)*cfSL(k_can) + LWout_leafshad(i,j,k_can)*(1.-cfSL(k_can))) / 2.0 ! at full level
       if (PA(k_can) < 1.0) then ! area-weighted average between background lw and leaf
-        lwd_can(k_can) = lwd_air * (1.0-PA(k_can)) + lw_leaflayer * PA(k_can)
-        lwu_can(k_can+1) = lwu_air * (1.0-PA(k_can)) + lw_leaflayer * PA(k_can) ! of the level above
+        lwd_can(k_can) = lwd_can(k_can+1) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwd_can(k_can+1))
       else
       ! since we assume that both sides of the leaf are at the same temperature
-        lwd_can(k_can)   = lw_leaflayer
-        lwu_can(k_can+1) = lw_leaflayer
+        lwd_can(k_can)   = lw_leaflayer(k_can)
       endif
-
     end do
-    ! for lowest lwu, use tskin*exner (tskin=thl, so convert to absolute temperature) for emission and account for reflection (1-emis):
+
+    ! surface upwelling LW irradiance
+    ! use tskin*exner (tskin=thl, so convert to absolute temperature) for emission and account for reflection (1-emis):
     exner = (ps/pref0) ** (rd/cp)
     lwu_can(1) =  sfc_emis * boltz * (tskinm_surf(i,j) * exner) ** 4. + (1-sfc_emis) * lwd_can(1)
+
+    ! upwelling loop from bottom to top of canopy
+    do k_can = 1, ncanopy
+      if (PA(k_can) < 1.0) then
+          lwu_can(k_can+1) = lwu_can(k_can) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwu_can(k_can))
+      else
+          lwu_can(k_can+1) = lw_leaflayer(k_can)
+      endif
+    end do
 
    !                                                                                                !
    !######### STEP 5 - Pass on variables needed to radiation ####################
