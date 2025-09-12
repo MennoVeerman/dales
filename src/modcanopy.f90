@@ -583,7 +583,7 @@ contains
    ! Patton and have been adapted, modified or extended where needed.
    !                                                      Xabier Pedruzo, 2020
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt
+    use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt,Rd,pref0
     use modsurfdata,only : phitot,weight_g,indCO2,albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad,nuco2q,pCw,tskinm_surf
     use modfields, only  : thl0,rhof,qt0,exnf,u0,v0,presf,svm,tmp0
     use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad,sfc_emis
@@ -596,8 +596,7 @@ contains
     real    :: LWin,paf
 !    real    ::PARdirTOC,PARdifTOC
     real    :: SWdirTOC,SWdifTOC
-    real    :: lwu_air,lwd_air,lw_leaflayer,kdrbl,sinbeta
-
+    real    :: lwu_air,lwd_air,lw_leaflayer,kdrbl,sinbeta, exner
    !                                                                  !
    !######### STEP 1 - Radiation inside the canopy, part1  ####################
    !                                                                  !
@@ -750,8 +749,9 @@ contains
       endif
 
     end do
-    ! for lowest lwu, use tskin for emission and account for reflection (1-emis):
-    lwu_can(1) =  sfc_emis * boltz * tskinm_surf(i,j) ** 4. + (1-sfc_emis) * lwd_can(1)
+    ! for lowest lwu, use tskin*exner (tskin=thl, so convert to absolute temperature) for emission and account for reflection (1-emis):
+    exner = (ps/pref0) ** (rd/cp)
+    lwu_can(1) =  sfc_emis * boltz * (tskinm_surf(i,j) * exner) ** 4. + (1-sfc_emis) * lwd_can(1)
 
    !                                                                                                !
    !######### STEP 5 - Pass on variables needed to radiation ####################
@@ -762,8 +762,8 @@ contains
     albedo_rad(i,j) = albsw_can(i,j)
     if (iradiation==irad_par) then ! all terms must be positive
       if (sinbeta>0.035) then ! day:
-        swdir(i,j,:ncanopy) = swdir_can(:ncanopy)                 
-        swdif(i,j,:ncanopy) = swdif_can(:ncanopy)               
+        swdir(i,j,:ncanopy) = swdir_can(:ncanopy)
+        swdif(i,j,:ncanopy) = swdif_can(:ncanopy)
         swd  (i,j,:ncanopy) = swdir_can(:ncanopy) + swdif_can(:ncanopy)
         swu  (i,j,:ncanopy) = swu_can(:ncanopy)
       endif
