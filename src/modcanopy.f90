@@ -154,6 +154,7 @@ contains
     implicit none
 
     integer ierr, k, kp
+    real f_cor
     character(80) readstring
 
     namelist/NAMCANOPY/ lcanopy, ncanopy, cd, lai_can, lpaddistr, npaddistr, &
@@ -285,14 +286,20 @@ contains
     do k=1,npaddistr
       zpad(k) = zh(1+ncanopy) * real(k-1)/real(npaddistr-1)
     end do
-
     !interpolate the PAD values to the LES grid
     call spline(zpad,ppad,npaddistr,padtemp)
     do k=1,(1+ncanopy)
       call splint(zpad,ppad,padtemp,npaddistr,zh(k),padh(k))
     end do
 
+    ! scale padh to correct interpolation errors
+    f_cor = f_lai_h*ncanopy / sum(padh)
+
     ! Interpolate plant area (index) density to full levels
+    do k=1,(1+ncanopy)
+        padh(k) = padh(k) * f_cor
+    end do
+
     do k=1,ncanopy
       kp      = k+1
       padf(k) = ( dzh(kp) * padh(k) + dzh(k) * padh(kp) ) / ( dzh(k) + dzh(kp) )
@@ -305,11 +312,7 @@ contains
     end do
     paih = 0.0
     do k=ncanopy+1,1,-1
-      if (k==1 .or. k==ncanopy+1) then !!top and bottom canopy half levels only have half of the pad(staggered)
-        paih(k) = paih(k+1) + dzh(k) * 0.5 * padh(k)
-      else
         paih(k) = paih(k+1) + dzh(k) * padh(k)
-      endif
     end do
 
     if (.not. (lcanopyeb)) return
@@ -623,6 +626,7 @@ contains
       kdrbl    = lclump * 0.5 / sinbeta
       do k_can=1,ncanopy
         cfSL(k_can)   = exp(-kdrbl * pai(k_can)) ! needed for absSWlayer
+
       enddo
     else
       cfSL = 0.0

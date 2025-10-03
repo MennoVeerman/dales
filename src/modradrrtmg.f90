@@ -199,7 +199,7 @@ contains
       if (rad_longw) then !IF added not to propagate LW effects of canopy LW to levels above  #XPB
         lwu(2:i1,j,1:k1) =  lwUp_slice  (1:imax,1:k1)
         lwd(2:i1,j,1:k1) = -lwDown_slice(1:imax,1:k1)
-      else !(.not. rad_longw) then !we get LW only at surface identically to how it is done in sunray subroutine 
+      else !(.not. rad_longw) then !we get LW only at surface identically to how it is done in sunray subroutine
         do i=2,i1
           lwd(i,j,1) =  -0.8 * boltz * thl0(i,j,1) ** 4.
           lwu(i,j,1) =  1.0 * boltz * tskin_rad(i,j) ** 4.
@@ -213,7 +213,7 @@ contains
       swdir(2:i1,j,1:k1) = -swDownDir_slice(1:imax,1:k1)
       swdif(2:i1,j,1:k1) = -swDownDif_slice(1:imax,1:k1)
       lwc  (2:i1,j,1:k1) =  LWP_slice      (1:imax,1:k1)
- 
+
       lwuca(2:i1,j,1:k1) =  lwUpCS_slice  (1:imax,1:k1)
       lwdca(2:i1,j,1:k1) = -lwDownCS_slice(1:imax,1:k1)
       swuca(2:i1,j,1:k1) =  swUpCS_slice  (1:imax,1:k1)
@@ -634,12 +634,12 @@ contains
 
       do i=2,i1
         im=i-1
-        
+
         !  tg_slice  (im)   = sst
         tg_slice  (im)   = tskin_rad(i,j) * exners  ! Note: tskin = thlskin...
-        
+
         do k=1,kmax
-          qv_slice  (im,k) = max(qt0(i,j,k) - ql0(i,j,k),1e-18) !avoid RRTMG reading negative initial values 
+          qv_slice  (im,k) = max(qt0(i,j,k) - ql0(i,j,k),1e-18) !avoid RRTMG reading negative initial values
           qcl_slice (im,k) = ql0(i,j,k)
           qci_slice (im,k) = 0.
           o3_slice  (im,k) = o3snd(npatch_start) ! o3 constant below domain top (if usero3!)

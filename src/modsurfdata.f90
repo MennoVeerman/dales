@@ -132,7 +132,7 @@ SAVE
   logical           :: lrelaxci_surf  = .false.!<  Switch to delay internal CO2 concentration in plant leafs; Timescale equal to that for gc
   real              :: kci_surf       = 0.00113!<  Standard internal CO2 response rate (corresponding to a time scale of 14.75 min.) [1/s]
   logical           :: cisurf_old_set = .false.!<  Only apply relaxing function after initial ci is calculated once
-  logical           :: tskin_set      = .false.!< Switch needed if lcanopyeb, to use surface radiative ppties in initaliation 
+  logical           :: tskin_set      = .false.!< Switch needed if lcanopyeb, to use surface radiative ppties in initaliation
   real, allocatable :: gc_old       (:,:)  !<  Old value for gc
   real              :: gc_inf              !<  Attractor for stomatal response rate
   real, allocatable :: ci_old       (:,:)  !<  Old value for ci
@@ -214,11 +214,11 @@ SAVE
   real,allocatable ::   PARdir_lsplit   (:)!< PARdir profile along vegetation
   real,allocatable ::   PARdif_lsplit   (:)!< PARdif profile along vegetation
   real,allocatable ::   PARu_lsplit     (:)!< PAR profile along vegetation
-  
+
   real         ::   PARdir_TOV        !< direct PAR at top of vegetation [W/m2]
   real         ::   PARdif_TOV        !< diffuse PAR profile along vegetation [W/m2]
   integer      ::   surfrad_meth = 2  !< (method to calculate radiation and absorbed  fluxes in surface vegetation (when lcanopyeb=false)  =1  XPB2017, =2 Goudriaan,V.Laar 1996
-  logical      ::   ldiscr      = .false.  !< use discrete defintion of differentiation to calculate absorbed radiation 
+  logical      ::   ldiscr      = .false.  !< use discrete defintion of differentiation to calculate absorbed radiation
 
 
   ! Surface energy balance
@@ -339,7 +339,7 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
   use modraddata , only : zenith
   use modglobal  , only : xtime,rtimee,xday,xlat,xlon
   implicit none
-  
+
   integer,intent(in) :: layers
   real, intent(in)   :: LAI                     ! total Leaf Area Index of the whole column
   real, intent(in),dimension(layers) :: LAI_can ! array with LAI above the evaluated level. Array goes from canopy bottom to top.
@@ -537,15 +537,15 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
   else ! small sinbeta, night
     Hshad      = 0.0
     Hsun       = 0.0
-    fracSL     = 0.0                              
+    fracSL     = 0.0
     effalb_dir = 0.0
-    effalb_dif = 0.0 
-    effalb_phi = 0.0 
+    effalb_dif = 0.0
+    effalb_phi = 0.0
     phidircan  = 0.0
     phidifcan  = 0.0
     phiucan    = 0.0
     isoil      = 0.0
-  endif ! sinbeta  
+  endif ! sinbeta
 return
 end subroutine ! canopyrad
 
@@ -554,7 +554,7 @@ subroutine f_Ags(CO2air,qtair,dens,tairk,pair,t_skin,          & ! in
                  lrelaxgc,gc_old_set,kgc,gleaf_old,rk3coef,    & ! in
                  lrelaxci,ci_old_set,kci,ci_old,               & ! in
                  gleaf,Fleaf,ci,                               & ! out
-                 fstr,Am,Rdark,alphac,co2abs,CO2comp,Ds,D0,fmin) ! additional out for 1leaf upscaling 
+                 fstr,Am,Rdark,alphac,co2abs,CO2comp,Ds,D0,fmin) ! additional out for 1leaf upscaling
 
       implicit none
       real, intent(in) ::  CO2air   ! CO2 air concentration [ppb]
@@ -574,12 +574,12 @@ subroutine f_Ags(CO2air,qtair,dens,tairk,pair,t_skin,          & ! in
       logical, intent(in) ::  ci_old_set !false at first timestep, true at any  other
       real, intent(in) ::  kci           ! Standard internal co2 concentration response rate
       real, intent(in) ::  ci_old        ! ci at previous timestep
-      
-      
+
+
       real, intent (out) :: gleaf   ! leaf stomatal conductance for carbon(m/s)
-      real, intent (out) :: Fleaf    
-      real, intent (out) :: ci     
-      
+      real, intent (out) :: Fleaf
+      real, intent (out) :: ci
+
       real, intent (out) :: fstr
       real, intent (out) :: Am
       real, intent (out) :: Rdark
@@ -647,14 +647,14 @@ subroutine f_Ags(CO2air,qtair,dens,tairk,pair,t_skin,          & ! in
       Agl    = fstr * (Am + Rdark) * (1 - exp(-alphac*Hleaf/(Am + Rdark)))
       !gleaf_inf  = gmin/nuco2q +  Agl/(co2abs-ci)
       gleaf_inf  = max(gmin/nuco2q, Agl/(co2abs-ci)) !Xabi test
-      
-      Fleaf  = -(Agl - Rdark) ! we flip sign here to be consistent with An in old DALES 
+
+      Fleaf  = -(Agl - Rdark) ! we flip sign here to be consistent with An in old DALES
 
       if (lrelaxgc .and. gc_old_set) then
           gleaf       = gleaf_old + min(kgc*rk3coef, 1.0) * (gleaf_inf - gleaf_old)
         else
           gleaf = gleaf_inf
-      endif 
+      endif
    return
 end subroutine !Ags
 
