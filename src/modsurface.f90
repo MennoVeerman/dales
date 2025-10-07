@@ -168,7 +168,6 @@ contains
     call MPI_BCAST(R10                        ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(lsplitleaf                 ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
     call MPI_BCAST(l3leaves                   ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
-    !call MPI_BCAST(sigma                      ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(surfrad_meth                ,            1, MPI_INTEGER, 0, comm3d, mpierr)
 
     call MPI_BCAST(land_use(1:mpatch,1:mpatch),mpatch*mpatch, MPI_INTEGER, 0, comm3d, mpierr)

@@ -227,8 +227,8 @@ contains
     allocate(padtemp   (npaddistr))
     allocate(padf      (ncanopy  ))
     allocate(padh      (ncanopy+1))
-    allocate(pai       (ncanopy+1))
-    allocate(paih      (ncanopy+2))
+    allocate(pai       (ncanopy))
+    allocate(paih      (ncanopy+1))
 
     ! Determination of padfactor: relative weighing of plant area distribution inside canopy; equidistant from surface to canopy top
     if (lpaddistr) then  !< Profile prescribed by user in the file paddistr.inp.<expnr>
@@ -300,11 +300,11 @@ contains
     ! scale padh to correct interpolation errors
     f_cor = f_lai_h*ncanopy / sum(padh)
 
-    ! Interpolate plant area (index) density to full levels
     do k=1,(1+ncanopy)
         padh(k) = padh(k) * f_cor
     end do
 
+    ! Interpolate plant area (index) density to full levels
     do k=1,ncanopy
       kp      = k+1
       padf(k) = ( dzh(kp) * padh(k) + dzh(k) * padh(kp) ) / ( dzh(k) + dzh(kp) )
