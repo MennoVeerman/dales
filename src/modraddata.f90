@@ -186,6 +186,7 @@ SAVE
   real, allocatable :: qskin_rad (:,:) !<  qskin  at lower boundary for radiation (can be surface or canopy top(not ready))
   real              :: sfc_emis = 0.95 !<  Spectrally constant surface emissivity
   integer           :: kmin_rad = 1    !<  lowest level at which radiation tendencies are calculated. =ncanopy+1 if canopy is present.
+  logical           :: radcanoffset = .false. !<lowest level at which radiation tendencies are calculated. =ncanopy+1 if canopy is present.
 
   real, allocatable :: SW_up_TOA(:,:), SW_dn_TOA(:,:), LW_up_TOA(:,:), LW_dn_TOA(:,:) !< Top of the atmosphere radiative fluxes
   real, allocatable :: SW_up_ca_TOA(:,:), SW_dn_ca_TOA(:,:), LW_up_ca_TOA(:,:), LW_dn_ca_TOA(:,:)

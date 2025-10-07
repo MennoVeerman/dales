@@ -227,8 +227,8 @@ contains
     allocate(padtemp   (npaddistr))
     allocate(padf      (ncanopy  ))
     allocate(padh      (ncanopy+1))
-    allocate(pai       (ncanopy))
-    allocate(paih      (ncanopy+1))
+    allocate(pai       (ncanopy+1))
+    allocate(paih      (ncanopy+2))
 
     ! Determination of padfactor: relative weighing of plant area distribution inside canopy; equidistant from surface to canopy top
     if (lpaddistr) then  !< Profile prescribed by user in the file paddistr.inp.<expnr>
