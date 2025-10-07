@@ -523,8 +523,8 @@ contains
 
       if (lnetcdf) then
         vars(:, 1) = padf
-        vars(:, 2) = pai
-        vars(:, 3) = paih
+        vars(:, 2) = pai(:ncanopy)
+        vars(:, 3) = paih(:ncanopy)
         vars(:, 4) = cfSLmn
         vars(:, 5) = shcanmn
         vars(:, 6) = lecanmn

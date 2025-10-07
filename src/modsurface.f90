@@ -98,7 +98,7 @@ contains
       ! Soil properties
       phi, phifc, phiwp, R10, &
       !2leaf AGS, sunlit/shaded
-      lsplitleaf,l3leaves,sigma,surfrad_meth
+      lsplitleaf,l3leaves,surfrad_meth
 
 
     ! 1    -   Initialize soil
@@ -168,7 +168,7 @@ contains
     call MPI_BCAST(R10                        ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(lsplitleaf                 ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
     call MPI_BCAST(l3leaves                   ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
-    call MPI_BCAST(sigma                      ,            1, MY_REAL    , 0, comm3d, mpierr)
+    !call MPI_BCAST(sigma                      ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(surfrad_meth                ,            1, MPI_INTEGER, 0, comm3d, mpierr)
 
     call MPI_BCAST(land_use(1:mpatch,1:mpatch),mpatch*mpatch, MPI_INTEGER, 0, comm3d, mpierr)
@@ -691,14 +691,17 @@ contains
         allocate(PARleaf_shad(nz_gauss))
         allocate(PARleaf_allsun(nz_gauss))
         allocate(PARleaf_sun(nz_gauss,nangle_gauss))
+        allocate(swleaf_shad(nz_gauss,nband_can))
+        allocate(swleaf_allsun(nz_gauss,nband_can))
+        allocate(swleaf_sun(nz_gauss,nangle_gauss,nband_can))
         allocate(fSL(nz_gauss))
         allocate(gshad_old(2:i1,2:j1,nz_gauss))
-        allocate(albdir_lsplit(2:i1,2:j1))
-        allocate(albdif_lsplit(2:i1,2:j1))
-        allocate(albswd_lsplit(2:i1,2:j1))
-        allocate(swdir_lsplit(2:i1,2:j1,nz_gauss))
-        allocate(swdif_lsplit(2:i1,2:j1,nz_gauss))
-        allocate(swu_lsplit(2:i1,2:j1,nz_gauss))
+        allocate(albdir_lsplit(2:i1,2:j1,nband_can))
+        allocate(albdif_lsplit(2:i1,2:j1,nband_can))
+        allocate(albswd_lsplit(2:i1,2:j1,nband_can))
+        allocate(swdir_lsplit(2:i1,2:j1,nz_gauss,nband_can))
+        allocate(swdif_lsplit(2:i1,2:j1,nz_gauss,nband_can))
+        allocate(swu_lsplit(2:i1,2:j1,nz_gauss,nband_can))
         allocate(PARdir_lsplit(nz_gauss))
         allocate(PARdif_lsplit(nz_gauss))
         allocate(PARu_lsplit  (nz_gauss))
@@ -1677,16 +1680,16 @@ contains
     real     :: PAR, tempy, AGSa1, Dstar !Variables for AGS 1-leaf upscaling
     real     :: An, gcco2,rsAgs, rsCO2 !Variables for AGS
     real     :: fw, Resp, wco2 !Variables for AGS
- 
+
     real     :: Fshad, gshad
     real     :: Fsun , gsun
     real     :: Fleafsun(nangle_gauss),gleafsun(nangle_gauss)
     real     :: Fnet(nz_gauss), gnet(nz_gauss)
     integer  :: angle
-    real     :: absPAR_ground! not used, but needed due to function definition
+    real     :: absPAR_ground(nband_can)! not used, but needed due to function definition
     ! vars needed for canopyeb
     real     :: fSL_bot, rs_leafshad_bot,rs_leafsun_bot,Fco2_can_bot
-    real     :: abssw_ground ! absorbed SW radiation by vegetated ground, only used if lcanopyeb
+    real     :: abssw_ground(nband_can) ! absorbed SW radiation by vegetated ground, only used if lcanopyeb
 
     real     :: lthls_patch(xpatches,ypatches)
     integer  :: Npatch(xpatches,ypatches), SNpatch(xpatches,ypatches)
@@ -1864,28 +1867,26 @@ contains
               indCO2 = 1
             endif !Is chemistry or bulk_micro on?
             linags = .true.
-          
+
           endif !linags
           if (lsplitleaf) then
-            !PARdir_TOV = 0.5 * max(0.1,abs(swdir(i,j,1)))
-            !PARdif_TOV = 0.5 * max(0.1,abs(swdif(i,j,1)))
-            PARdir_TOV = 0.44 * max(0.1,abs(swdir(i,j,1)))
-            PARdif_TOV = 0.44 * max(0.1,abs(swdif(i,j,1)))
-            call canopyrad(nz_gauss,LAI_surf(i,j),LAI_surf(i,j)*LAI_g,PARdir_TOV,PARdif_TOV,albedo_surf(i,j),1.0,surfrad_meth,& ! in! 
-                 PARleaf_shad,PARleaf_sun,fSL,& 
-                 albdir_lsplit(i,j),albdif_lsplit(i,j),albswd_lsplit(i,j),&
-                 PARdir_lsplit(:nz_gauss),PARdif_lsplit(:nz_gauss),PARu_lsplit(:nz_gauss),absPAR_ground)! could be coupled to radiation
+            swdir_TOV = max(0.1,abs(swdir(i,j,1)))
+            swdif_TOV = max(0.1,abs(swdif(i,j,1)))
+            call canopyrad(nz_gauss,LAI_surf(i,j),LAI_surf(i,j)*LAI_g,swdir_TOV,swdif_TOV,albedo_surf(i,j),1.0,surfrad_meth,& ! in!
+                 swleaf_shad,swleaf_sun,fSL,&
+                 albdir_lsplit(i,j,:),albdif_lsplit(i,j,:),albswd_lsplit(i,j,:),&
+                 swdir_lsplit(i,j,:nz_gauss,:),swdif_lsplit(i,j,:nz_gauss,:),swu_lsplit(i,j,:nz_gauss,:),absPAR_ground(:))! could be coupled to radiation
             !previously we assumed SW = 2.0*PAR, now we assume SW = 1/0.44*PAR
-            !swdir_lsplit(i,j,:nz_gauss) = 2.0 * PARdir_lsplit(:nz_gauss)
-            !swdif_lsplit(i,j,:nz_gauss) = 2.0 * PARdif_lsplit(:nz_gauss)
-            !swu_lsplit  (i,j,:nz_gauss) = 2.0 * PARu_lsplit  (:nz_gauss)
-            swdir_lsplit(i,j,:nz_gauss) = 1/0.44 * PARdir_lsplit(:nz_gauss)
-            swdif_lsplit(i,j,:nz_gauss) = 1/0.44 * PARdif_lsplit(:nz_gauss)
-            swu_lsplit  (i,j,:nz_gauss) = 1/0.44 * PARu_lsplit  (:nz_gauss)
+            PARdir_lsplit(:nz_gauss) = swdir_lsplit(i,j,:nz_gauss, iband_par)
+            PARdif_lsplit(:nz_gauss) = swdif_lsplit(i,j,:nz_gauss, iband_par)
+            PARu_lsplit(:nz_gauss) = swu_lsplit  (i,j,:nz_gauss, iband_par)
+            PARleaf_shad(:nz_gauss) = swleaf_shad(:nz_gauss,iband_par)
+            PARleaf_sun(:nz_gauss,:) = swleaf_sun(:nz_gauss,:,iband_par)
+
             do itg = 1,nz_gauss
               !shaded
               call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j),  & ! in
-                         phitot(i,j),PARleaf_shad(itg), & ! in 
+                         phitot(i,j),PARleaf_shad(itg), & ! in
                          lrelaxgc_surf,gcsurf_old_set,kgc_surf,gshad_old(i,j,itg),rk3coef, & ! in
                          lrelaxci_surf,cisurf_old_set,kci_surf,ci_old(i,j), & ! in
                          gshad,Fshad,ci,&                                  !out
@@ -1912,7 +1913,7 @@ contains
                 Fsun   = sum(weight_g * Fleafsun(1:nangle_gauss))
                 gsun   = sum(weight_g * gleafsun(1:nangle_gauss))
               else ! angles PAR are averaged
-                PARleaf_allsun   = sum(weight_g * PARleaf_sun(itg,1:nangle_gauss))
+                PARleaf_allsun   = sum(weight_g * PARleaf_sun(itg,1:nangle_gauss), dim=1)
                 call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j), & ! in
                            phitot(i,j),PARleaf_allsun(itg), & ! in
                            lrelaxgc_surf,gcsurf_old_set,kgc_surf,gsun_old(i,j,itg),rk3coef,& !
@@ -1946,12 +1947,11 @@ contains
             if (lcanopyeb) then
             ! move to the canopy module and rewrite ,among others,swd modified by canopy and needed for surface
               call canopyeb(i,j,ps,rk3coef,abssw_ground)           ! in
-            endif ! lcanopyeb  
+            endif ! lcanopyeb
              ! and for understory vegetation:
-            
+
             !upscaling following Ronda et al
-            !PAR      = 0.50 * max(0.1,abssw_ground) !assume 50% of SW absorbed is PAR
-            PAR       = 0.44 * max(0.1,abssw_ground) !assume 44% of SW absorved is PAR
+            PAR       = max(0.1, abssw_ground(iband_par))
             call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j),& ! in
                        phitot(i,j),PAR, & ! in
                        lrelaxgc_surf,gcsurf_old_set,kgc_surf,gc_old(i,j),rk3coef,   & ! in

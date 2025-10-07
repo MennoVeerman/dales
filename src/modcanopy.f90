@@ -74,9 +74,14 @@ module modcanopy
   real     :: kci_can      = 0.00113   !< Standard internal CO2 concentration response rate at canopy (corresponding to a time scale of 14.75 m min.) [1/s]
   logical  :: cican_old_set = .false.  !< Only apply relaxing function to canopy after initial ci is calculated once for surface
   logical  :: tleaf_old_set = .false.  !<
-  real, allocatable :: absSWleaf_shad   (:,:,:) !< SW at shaded leaves per canopy vertical level [W m-2 leaf]
-  real, allocatable :: absSWleaf_sun    (:,:)   !< SW at sunny leaves per vertical level and leaf orientation [W m-2 leaf]
-  real, allocatable :: temp_absSWleaf_shad    (:)   !< SW at sunny leaves per vertical level and leaf orientation [W m-2 leaf]
+  real, allocatable :: absleaf_shad_b   (:,:,:,:) !< per-band SW absorbed at shaded leaves per canopy vertical level [W m-2 leaf]
+  real, allocatable :: absSWleaf_shad   (:,:,:) !< total SW absorbed at shaded leaves per canopy vertical level [W m-2 leaf]
+  real, allocatable :: absPARleaf_shad   (:,:,:) !< PAR absorbed at shaded leaves per canopy vertical level [W m-2 leaf]
+  real, allocatable :: absleaf_sun_b    (:,:,:)   !< per-band SW at sunny leaves per vertical level and leaf orientation [W m-2 leaf]
+  real, allocatable :: absSWleaf_sun    (:,:)   !< total SW at sunny leaves per vertical level and leaf orientation [W m-2 leaf]
+  real, allocatable :: absPARleaf_sun    (:,:)   !< PAR at sunny leaves per vertical level and leaf orientation [W m-2 leaf]
+
+  real, allocatable :: temp_absleaf_shad_b    (:,:)   !< SW at sunny leaves per vertical level and leaf orientation [W m-2 leaf]
   real, allocatable :: absSWleaf_allsun (:,:,:) !< SW at sunny leaves per vertical level averaged over all leaf orientations [W m-2leaf]
   real, allocatable :: absSWlayer       (:,:,:) !< SW abosrbed per vertical level [W m-2 ground]
   real, allocatable :: cfSL_h          (:)     !< Fraction of sunlit leaves at half levels [-]
@@ -131,12 +136,12 @@ module modcanopy
   real, allocatable :: LWin_leafbot    (:)     !< LW reaching lower side of leave
 
   real, allocatable :: tskin_can       (:,:) !< tskin at canopy top
-  real, allocatable :: albdir_can      (:,:) !< effective direct SW albedo by canopy
-  real, allocatable :: albdif_can      (:,:) !< effective diffuse SW albedo by canopy
-  real, allocatable :: albsw_can       (:,:) !< effective global SW albedo by canopy
-  real, allocatable :: swdir_can       (:) !< direct SW through canopy
-  real, allocatable :: swdif_can       (:) !< diffuse SW through canopy
-  real, allocatable :: swu_can         (:) !< upwards SW through canopy
+  real, allocatable :: albdir_can      (:,:,:) !< effective direct SW albedo by canopy
+  real, allocatable :: albdif_can      (:,:,:) !< effective diffuse SW albedo by canopy
+  real, allocatable :: albsw_can       (:,:,:) !< effective global SW albedo by canopy
+  real, allocatable :: swdir_can       (:,:) !< direct SW through canopy
+  real, allocatable :: swdif_can       (:,:) !< diffuse SW through canopy
+  real, allocatable :: swu_can         (:,:) !< upwards SW through canopy
   real, allocatable :: PARdir_can       (:) !< direct PAR through canopy
   real, allocatable :: PARdif_can       (:) !< diffuse PAR through canopy
   real, allocatable :: PARu_can         (:) !< upwards PAR through canopy
@@ -148,7 +153,7 @@ contains
   SUBROUTINE initcanopy
     use modmpi,      only : myid, mpi_logical, mpi_integer, my_real, comm3d, mpierr
     use modglobal,   only : kmax, ifnamopt, fname_options, ifinput, cexpnr, zh, dzh, dzf,ih,i1,jh,j1,i2,j2,dzh
-    use modsurfdata, only : nangle_gauss,ldiscr,lsplitleaf,l3leaves
+    use modsurfdata, only : nangle_gauss,ldiscr,lsplitleaf,l3leaves,nband_can
     use modraddata , only : kmin_rad
     use modfields,   only : tmp0
     implicit none
@@ -314,14 +319,17 @@ contains
     do k=ncanopy+1,1,-1
         paih(k) = paih(k+1) + dzh(k) * padh(k)
     end do
-
     if (.not. (lcanopyeb)) return
 
     ldiscr = .true. ! use difference between canopy levels instead of analytic derivative in canopyrad
+    allocate(absleaf_shad_b(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1,nband_can))
     allocate(absSWleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
+    allocate(absPARleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
     allocate(absSWleaf_allsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
-    allocate(temp_absSWleaf_shad(ncanopy+1))
+    allocate(temp_absleaf_shad_b(ncanopy+1,nband_can))
+    allocate(absleaf_sun_b(ncanopy+1,nangle_gauss,nband_can))
     allocate(absSWleaf_sun(ncanopy+1,nangle_gauss))
+    allocate(absPARleaf_sun(ncanopy+1,nangle_gauss))
     allocate(absSWlayer(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
     allocate(iLAI_can(ncanopy+1))
     allocate(cfSL_h(ncanopy+1))
@@ -375,12 +383,12 @@ contains
     allocate(LWin_leaftop(ncanopy))
     allocate(LWin_leafbot(ncanopy))
     allocate(tskin_can (i2,j2)) ! same dims as surface variables
-    allocate(albdir_can(i2,j2))
-    allocate(albdif_can(i2,j2))
-    allocate(albsw_can (i2,j2))
-    allocate(swdir_can(ncanopy+1))
-    allocate(swdif_can(ncanopy+1))
-    allocate(swu_can(ncanopy+1))
+    allocate(albdir_can(i2,j2,nband_can))
+    allocate(albdif_can(i2,j2,nband_can))
+    allocate(albsw_can (i2,j2,nband_can))
+    allocate(swdir_can(ncanopy+1,nband_can))
+    allocate(swdif_can(ncanopy+1,nband_can))
+    allocate(swu_can(ncanopy+1,nband_can))
     allocate(PARdir_can(ncanopy+1))
     allocate(PARdif_can(ncanopy+1))
     allocate(PARu_can  (ncanopy+1))
@@ -507,10 +515,14 @@ contains
     deallocate(paih     )
     if (.not. (lcanopyeb)) return
 
+    deallocate(absleaf_shad_b)
     deallocate(absSWleaf_shad)
+    deallocate(absPARleaf_shad)
     deallocate(absSWleaf_allsun)
-    deallocate(temp_absSWleaf_shad)
+    deallocate(temp_absleaf_shad_b)
+    deallocate(absleaf_sun_b)
     deallocate(absSWleaf_sun)
+    deallocate(absPARleaf_sun)
     deallocate(absSWlayer)
     deallocate(cfSL_h)
     deallocate(cfSL)
@@ -593,14 +605,14 @@ contains
    !                                                      Xabier Pedruzo, 2020
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt,Rd,pref0
-    use modsurfdata,only : phitot,weight_g,indCO2,albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad,nuco2q,pCw,tskinm_surf
+    use modsurfdata,only : phitot,weight_g,indCO2,albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
     use modfields, only  : thl0,rhof,qt0,exnf,u0,v0,presf,svm,tmp0
     use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad,sfc_emis
     implicit none
 
     integer, intent(in) :: i,j
     real, intent(in) :: ps,rk3coef
-    real, intent(out) :: abssw_soil ! SW radiation asborbed by below-canopy soil/ground
+    real, intent(out),dimension(nband_can) :: abssw_soil ! SW radiation asborbed by below-canopy soil/ground
     integer :: k_can,k
     real    :: LWin,paf
 !    real    ::PARdirTOC,PARdifTOC
@@ -616,11 +628,18 @@ contains
     SWdirTOC = max(0.1,abs(swdir(i,j,ncanopy+1)))
     SWdifTOC = max(0.1,abs(swdif(i,j,ncanopy+1)))
     call canopyrad(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,albedo_surf(i,j),lclump,canrad_meth,& ! in
-                   temp_absSWleaf_shad,absSWleaf_sun,cfSL_h,                                         & ! out for vegetation
-                   albdir_can(i,j),albdif_can(i,j),albsw_can(i,j),                                 & ! out for radiation
-                   swdir_can(:ncanopy+1),swdif_can(:ncanopy+1),swu_can(:ncanopy+1),abssw_soil)    ! out for radiation
-    absSWleaf_shad(i,j,:) = temp_absSWleaf_shad(:)
-   ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad
+                   temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
+                   albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
+                   swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation
+    absleaf_shad_b(i,j,:,:) = temp_absleaf_shad_b(:,:)
+
+    absSWleaf_shad(i,j,:) = sum(absleaf_shad_b(i,j,:,:), dim=2)
+    absPARleaf_shad(i,j,:) = absleaf_shad_b(i,j,:,iband_par)
+
+    absSWleaf_sun(:,:) = sum(absleaf_sun_b, dim=3)
+    absPARleaf_sun(:,:) = absleaf_sun_b(:,:,iband_par)
+
+    ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad
     sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon),1.e-10)
     if (sinbeta>0.035) then ! daytime, same threshold as radpar
       kdrbl    = lclump * 0.5 / sinbeta
@@ -827,13 +846,13 @@ contains
 
     ! tskin_can as weighted average similar to sources in canopysource
     tskin_can(i,j) = t_leafsun(i,j,ncanopy)*cfSL(ncanopy) + t_leafshad(i,j,ncanopy)*(1.-cfSL(ncanopy))
-    albedo_rad(i,j) = albsw_can(i,j)
+    albedo_rad(i,j) = sum(weight_b * albsw_can(i,j,:))
     if (iradiation==irad_par) then ! all terms must be positive
       if (sinbeta>0.035) then ! day:
-        swdir(i,j,:ncanopy) = swdir_can(:ncanopy)
-        swdif(i,j,:ncanopy) = swdif_can(:ncanopy)
-        swd  (i,j,:ncanopy) = swdir_can(:ncanopy) + swdif_can(:ncanopy)
-        swu  (i,j,:ncanopy) = swu_can(:ncanopy)
+        swdir(i,j,:ncanopy) = sum(swdir_can(:ncanopy,:), dim=2)
+        swdif(i,j,:ncanopy) = sum(swdif_can(:ncanopy,:), dim=2)
+        swd  (i,j,:ncanopy) = sum(swdir_can(:ncanopy,:) + swdif_can(:ncanopy,:), dim=2)
+        swu  (i,j,:ncanopy) = sum(swu_can(:ncanopy,:), dim=2)
       endif
       ! update longwave in time steps with radiation
       if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
@@ -842,10 +861,10 @@ contains
       endif
     else
       if (sinbeta>0.035) then ! day:
-        swdir(i,j,:ncanopy) = -swdir_can(:ncanopy)
-        swdif(i,j,:ncanopy) = -swdif_can(:ncanopy)
-        swd  (i,j,:ncanopy) = -(swdir_can(:ncanopy) + swdif_can(:ncanopy))
-        swu  (i,j,:ncanopy) = swu_can(:ncanopy)               !should be on
+        swdir(i,j,:ncanopy) = -sum(swdir_can(:ncanopy,:), dim=2)
+        swdif(i,j,:ncanopy) = -sum(swdif_can(:ncanopy,:), dim=2)
+        swd  (i,j,:ncanopy) = -sum(swdir_can(:ncanopy,:) + swdif_can(:ncanopy,:), dim=2)
+        swu  (i,j,:ncanopy) = sum(swu_can(:ncanopy,:),dim=2)     !should be on
       endif
       ! update longwave in time steps with radiation
       if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
