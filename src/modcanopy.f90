@@ -58,7 +58,7 @@ module modcanopy
   ! Namoptions
   logical :: lcanopyeb     = .false.   !< Switch to enable canopy surface energy balance per vertical level
 
-  real    :: leaf_eps      = 0.95      !< Emissivity of leaves in the LW
+  real    :: leaf_eps      = 0.98      !< Emissivity of leaves in the LW
   real    :: transpiretype = 1.0       !< type of transpirer(1=hypostomatous, 2=amphistomatous,
                                        !< 1.25=hypostomatous with some transpiration through cuticle)
   real     :: lwidth       = 0.02      !< !leaf width/shoot diameter [m]
@@ -663,52 +663,45 @@ contains
     end if
    !                #############  LW  into leaf #################               !
 
-   !other necessary terms
-   ! convert humidity into vapor pressure
-    do k_can=1,ncanopy+50
-      humidairpa(k_can) =  watervappres(qt0(i,j,k_can),presf(k_can)) !
-    enddo
+    if(def_LWcan) then ! we need to build a LW profile according to air characteristics
+     ! downwelling LW irradiance at top of canopy
+     if (iradiation==irad_lsm .or.((iradiation==irad_par .or. iradiation==irad_rrtmg ).and. rad_longw .eqv. .false.)) then ! there is no LW calculated by radiation
+       !! situation without LW scheme should be revised
+       lwd_can(ncanopy+1) = unexposedleafLWin(tmp0(i,j,ncanopy), leaf_eps)
+     else ! get LW calculated by rad scheme, here positive for any rad scheme
+       lwd_can(ncanopy+1) = abs(lwd(i,j,ncanopy+1))
+     endif
 
-    if(def_LWcan) then
-      !
-      ! ### LW into leaf from fluxes based on current (= previous time step) temperatures
-      !
+     ! downwelling loop from top to bottom of canopy
+     do k_can = ncanopy, 1, -1
+       ! area-weighted average between sunlit and shaded leaves. Divide total leaf emission by 2, because half is going upward and half is going downward.
+       lw_leaflayer(k_can) = (leafLWout(t_leafsun(i,j,k_can), leaf_eps)*cfSL(k_can) + leafLWout(t_leafshad(i,j,k_can), leaf_eps)*(1.-cfSL(k_can))) / 2.
+       if (PA(k_can) < 1.0) then ! area-weighted average between background lw and leaf. Assume emissivity+transmissivity=1
+         lwd_can(k_can) = lwd_can(k_can+1) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwd_can(k_can+1))
+       else
+       ! since we assume that both sides of the leaf are at the same temperature
+         lwd_can(k_can)   = lw_leaflayer(k_can)
+       endif
+     end do
 
-      ! downwelling LW irradiance at top of canopy
-      if (iradiation==irad_lsm .or.((iradiation==irad_par .or. iradiation==irad_rrtmg ).and. rad_longw .eqv. .false.)) then ! there is no LW calculated by radiation
-        !! situation without LW scheme should be revised
-        lwd_can(ncanopy+1) = unexposedleafLWin(tmp0(i,j,ncanopy), leaf_eps)
-      else ! get LW calculated by rad scheme, here positive for any rad scheme
-        lwd_can(ncanopy+1) = abs(lwd(i,j,ncanopy+1))
-      endif
+     ! surface upwelling LW irradiance
+     ! use tskin*exner (tskin=thl, so convert to absolute temperature) for emission and account for reflection (1-emis):
+     exner = (ps/pref0) ** (rd/cp)
+     lwu_can(1) =  sfc_emis * boltz * (tskinm_surf(i,j) * exner) ** 4. + (1-sfc_emis) * lwd_can(1)
 
-      ! downwelling loop from top to bottom of canopy
-      do k_can = ncanopy, 1, -1
-        ! area-weighted average between sunlit and shaded leaves. Divide total leaf emission by 2, because half is going upward and half is going downward.
-        lw_leaflayer(k_can) = (leafLWout(t_leafsun(i,j,k_can), leaf_eps)*cfSL(k_can) + leafLWout(t_leafshad(i,j,k_can), leaf_eps)*(1.-cfSL(k_can))) / 2.
-        if (PA(k_can) < 1.0) then ! area-weighted average between background lw and leaf
-          lwd_can(k_can) = lwd_can(k_can+1) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwd_can(k_can+1))
-        else
-        ! since we assume that both sides of the leaf are at the same temperature
-          lwd_can(k_can)   = lw_leaflayer(k_can)
-        endif
-      end do
+     ! upwelling loop from bottom to top of canopy
+     do k_can = 1, ncanopy
+       if (PA(k_can) < 1.0) then
+           lwu_can(k_can+1) = lwu_can(k_can) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwu_can(k_can))
+       else
+           lwu_can(k_can+1) = lw_leaflayer(k_can)
+       endif
 
-      ! surface upwelling LW irradiance
-      ! use tskin*exner (tskin=thl, so convert to absolute temperature) for emission and account for reflection (1-emis):
-      exner = (ps/pref0) ** (rd/cp)
-      lwu_can(1) =  sfc_emis * boltz * (tskinm_surf(i,j) * exner) ** 4. + (1-sfc_emis) * lwd_can(1)
-
-      ! upwelling loop from bottom to top of canopy
-      do k_can = 1, ncanopy
-        if (PA(k_can) < 1.0) then
-            lwu_can(k_can+1) = lwu_can(k_can) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwu_can(k_can))
-        else
-            lwu_can(k_can+1) = lw_leaflayer(k_can)
-        endif
-        LWin_leafshad(i,j,k_can) = leaf_eps * (lwu_can(k_can) + lwd_can(k_can+1))
-        LWin_leafsun(i,j,k_can) = leaf_eps * (lwu_can(k_can) + lwd_can(k_can+1))
-      end do
+       ! Close radiation balance
+       ! Absorption per LEAF = (Delta LW_net - emission)/PA, where emission = 2xleaflayers (two hemispheres)
+       LWin_leafshad(i,j,k_can) = ( (lwd_can(k_can+1) - lwd_can(k_can) + lwu_can(k_can) - lwu_can(k_can+1)) + lw_leaflayer(k_can) * PA(k_can) * 2) / PA(k_can)
+       LWin_leafsun(i,j,k_can) = LWin_leafshad(i,j,k_can)
+     end do
 
     endif
 
