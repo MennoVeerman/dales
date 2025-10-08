@@ -1266,7 +1266,7 @@ contains
       ! Reset all background profiles
       rhobf=0.
       rhobh=0.
-
+      height=0
       ! Read background profiles in all cases
       open (ifinput,file='baseprof.inp.'//cexpnr)
       read (ifinput,'(a80)') chmess

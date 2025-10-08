@@ -396,6 +396,9 @@ contains
     allocate(lwu_can(ncanopy+1))
     allocate(lw_leaflayer(ncanopy))
 
+    albdir_can = 0
+    albdif_can = 0
+    albsw_can = 0
     PARdir_can = 0
     PARdif_can = 0
     PARu_can   = 0
@@ -618,39 +621,46 @@ contains
 !    real    ::PARdirTOC,PARdifTOC
     real    :: SWdirTOC,SWdifTOC
     real    :: lwu_air,lwd_air,kdrbl,sinbeta, exner
+    logical :: update_canrad = .false.
    !                                                                  !
    !######### STEP 1 - Radiation inside the canopy, part1  ####################
    !                                                                  !
 
    !                #############  SW  #################               !
     iLAI_can(:) = paih(1:ncanopy+1)
-    !assume scattering/reflections properties of leaves is the same for PAR and SW, becauswe canopyrad uses coefficients for PAR
-    SWdirTOC = max(0.1,abs(swdir(i,j,ncanopy+1)))
-    SWdifTOC = max(0.1,abs(swdif(i,j,ncanopy+1)))
-    call canopyrad(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,albedo_surf(i,j),lclump,canrad_meth,& ! in
-                   temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
-                   albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
-                   swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation
-    absleaf_shad_b(i,j,:,:) = temp_absleaf_shad_b(:,:)
 
-    absSWleaf_shad(i,j,:) = sum(absleaf_shad_b(i,j,:,:), dim=2)
-    absPARleaf_shad(i,j,:) = absleaf_shad_b(i,j,:,iband_par)
+    if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) update_canrad = .true.
 
-    absSWleaf_sun(:,:) = sum(absleaf_sun_b, dim=3)
-    absPARleaf_sun(:,:) = absleaf_sun_b(:,:,iband_par)
 
-    ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad
-    sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon),1.e-10)
-    if (sinbeta>0.035) then ! daytime, same threshold as radpar
-      kdrbl    = lclump * 0.5 / sinbeta
-      do k_can=1,ncanopy
-        cfSL(k_can)   = exp(-kdrbl * pai(k_can)) ! needed for absSWlayer
+    if (update_canrad) then
+        !assume scattering/reflections properties of leaves is the same for PAR and SW, becauswe canopyrad uses coefficients for PAR
+        SWdirTOC = max(0.1,abs(swdir(i,j,ncanopy+1)))
+        SWdifTOC = max(0.1,abs(swdif(i,j,ncanopy+1)))
+        call canopyrad(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,albedo_surf(i,j),lclump,canrad_meth,& ! in
+                       temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
+                       albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
+                       swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation
+        absleaf_shad_b(i,j,:,:) = temp_absleaf_shad_b(:,:)
 
-      enddo
-    else
-      cfSL = 0.0
-    endif
+        absSWleaf_shad(i,j,:) = sum(absleaf_shad_b(i,j,:,:), dim=2)
+        absPARleaf_shad(i,j,:) = absleaf_shad_b(i,j,:,iband_par)
 
+        absSWleaf_sun(:,:) = sum(absleaf_sun_b, dim=3)
+        absPARleaf_sun(:,:) = absleaf_sun_b(:,:,iband_par)
+
+        ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad
+        sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon),1.e-10)
+        if (sinbeta>0.035) then ! daytime, same threshold as radpar
+          kdrbl    = lclump * 0.5 / sinbeta
+          do k_can=1,ncanopy
+            cfSL(k_can)   = exp(-kdrbl * pai(k_can)) ! needed for absSWlayer
+
+          enddo
+        else
+          cfSL = 0.0
+        endif
+
+    end if
    !                #############  LW  into leaf #################               !
 
    !other necessary terms
@@ -659,21 +669,9 @@ contains
       humidairpa(k_can) =  watervappres(qt0(i,j,k_can),presf(k_can)) !
     enddo
 
-    if(def_LWcan) then ! we need to build a LW profile according to air characteristics
+    if(def_LWcan) then
       !
-      ! ### Old version: LW into leaf from local air temperature
-      !
-
-      !do k_can =1,ncanopy
-      !  LWin = unexposedleafLWin(tmp0(i,j,k_can), leaf_eps) ! shouldn we use air eps?
-      !  LWin_leafshad(i,j,k_can)  = 2. * LWin
-      !  ! we take values above canopy, not from k_can
-      !  LWin_leafsun(i,j,k_can)   = 0.5 * exposedleafLWin_cor(humidairpa(k_can:k_can+50),i,j,k_can) + 1.5 * LWin !
-      !end do
-
-
-      !
-      ! ### New version: LW into leaf from fluxes based on current (= previous time step) temperatures
+      ! ### LW into leaf from fluxes based on current (= previous time step) temperatures
       !
 
       ! downwelling LW irradiance at top of canopy
@@ -843,35 +841,36 @@ contains
    !                                                                                                !
    !######### STEP 5 - Pass on variables needed to radiation ####################
    !
+    if (update_canrad) then
+        ! tskin_can as weighted average similar to sources in canopysource
+        tskin_can(i,j) = t_leafsun(i,j,ncanopy)*cfSL(ncanopy) + t_leafshad(i,j,ncanopy)*(1.-cfSL(ncanopy))
 
-    ! tskin_can as weighted average similar to sources in canopysource
-    tskin_can(i,j) = t_leafsun(i,j,ncanopy)*cfSL(ncanopy) + t_leafshad(i,j,ncanopy)*(1.-cfSL(ncanopy))
-    albedo_rad(i,j) = sum(weight_b * albsw_can(i,j,:))
-    if (iradiation==irad_par) then ! all terms must be positive
-      if (sinbeta>0.035) then ! day:
-        swdir(i,j,:ncanopy) = sum(swdir_can(:ncanopy,:), dim=2)
-        swdif(i,j,:ncanopy) = sum(swdif_can(:ncanopy,:), dim=2)
-        swd  (i,j,:ncanopy) = sum(swdir_can(:ncanopy,:) + swdif_can(:ncanopy,:), dim=2)
-        swu  (i,j,:ncanopy) = sum(swu_can(:ncanopy,:), dim=2)
-      endif
-      ! update longwave in time steps with radiation
-      if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
-        lwd  (i,j,:ncanopy) = lwd_can(:ncanopy)
-        lwu  (i,j,:ncanopy+1) = lwu_can(:ncanopy+1)
-      endif
-    else
-      if (sinbeta>0.035) then ! day:
-        swdir(i,j,:ncanopy) = -sum(swdir_can(:ncanopy,:), dim=2)
-        swdif(i,j,:ncanopy) = -sum(swdif_can(:ncanopy,:), dim=2)
-        swd  (i,j,:ncanopy) = -sum(swdir_can(:ncanopy,:) + swdif_can(:ncanopy,:), dim=2)
-        swu  (i,j,:ncanopy) = sum(swu_can(:ncanopy,:),dim=2)     !should be on
-      endif
-      ! update longwave in time steps with radiation
-      if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
-        lwd  (i,j,:ncanopy) = -lwd_can(:ncanopy)
-        lwu  (i,j,:ncanopy+1) = lwu_can(:ncanopy+1)  !should be on
-      endif
-    endif
+        if (iradiation==irad_par) then ! all terms must be positive
+          if (sinbeta>0.035) then ! day:
+            swdir(i,j,:ncanopy) = sum(swdir_can(:ncanopy,:), dim=2)
+            swdif(i,j,:ncanopy) = sum(swdif_can(:ncanopy,:), dim=2)
+            swd  (i,j,:ncanopy) = sum(swdir_can(:ncanopy,:) + swdif_can(:ncanopy,:), dim=2)
+            swu  (i,j,:ncanopy) = sum(swu_can(:ncanopy,:), dim=2)
+          endif
+          ! update longwave in time steps with radiation
+          if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
+            lwd  (i,j,:ncanopy) = lwd_can(:ncanopy)
+            lwu  (i,j,:ncanopy+1) = lwu_can(:ncanopy+1)
+          endif
+        else
+          if (sinbeta>0.035) then ! day:
+            swdir(i,j,:ncanopy) = -sum(swdir_can(:ncanopy,:), dim=2)
+            swdif(i,j,:ncanopy) = -sum(swdif_can(:ncanopy,:), dim=2)
+            swd  (i,j,:ncanopy) = -sum(swdir_can(:ncanopy,:) + swdif_can(:ncanopy,:), dim=2)
+            swu  (i,j,:ncanopy) = sum(swu_can(:ncanopy,:),dim=2)     !should be on
+          endif
+          ! update longwave in time steps with radiation
+          if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
+            lwd  (i,j,:ncanopy) = -lwd_can(:ncanopy)
+            lwu  (i,j,:ncanopy+1) = lwu_can(:ncanopy+1)  !should be on
+          endif
+        endif
+   end if
    ! we do not account for absortion, scattering or other processes by air particles inside
    !canopy, so air temperature tendency needs to be exactly 0 inside canopy
    thlprad_can(i,j,:) = 0.0
@@ -889,6 +888,8 @@ contains
      t_leafshad_old(i,j,:) = t_leafshad(i,j,:)
      if (i==i1 .and. j==j1) cfSL_old(:) = cfSL(:) ! not necessary every i,
    endif
+
+  update_canrad = .false.
   end subroutine canopyeb
   subroutine canopyu (putout)
     use modglobal, only  : i1, ih, j1, j2, jh, k1, cu, cv, dzh, imax, jmax

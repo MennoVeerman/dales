@@ -772,7 +772,7 @@ contains
     use shr_orb_mod, only : shr_orb_decl
     use modmpi,      only : myid
     use modsurfdata, only : albedoav_surf,albedo_surf
-    use modcanopy,   only : lcanopyeb
+    use modcanopy,   only : lcanopyeb,albdir_can,albdif_can
 
     implicit none
     integer, intent(in) :: j
@@ -813,10 +813,10 @@ contains
     if (all(solarZenithAngleCos(:) >= tiny(solarZenithAngleCos))) then
       sunUp = .true.
       if(lcanopyeb) then ! albedo is provided by canopy radiation subroutine of previous timestep
-        aldir(1:imax) = albedo_rad(2:i1,j) !albdir_can(2:i1,j)
-        asdir(1:imax) = albedo_rad(2:i1,j) !albdir_can(2:i1,j)
-        aldif(1:imax) = albedo_rad(2:i1,j) !albdif_can(2:i1,j)
-        asdif(1:imax) = albedo_rad(2:i1,j) !albdif_can(2:i1,j)
+        aldir(1:imax) = albdir_can(2:i1,j,2)
+        asdir(1:imax) = albdir_can(2:i1,j,1)
+        aldif(1:imax) = albdif_can(2:i1,j,2)
+        asdif(1:imax) = albdif_can(2:i1,j,1)
       else if (lCnstAlbedo) then
         aldir = albedoav_surf
         asdir = albedoav_surf
