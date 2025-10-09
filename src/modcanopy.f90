@@ -142,9 +142,8 @@ module modcanopy
   real, allocatable :: swdir_can       (:,:) !< direct SW through canopy
   real, allocatable :: swdif_can       (:,:) !< diffuse SW through canopy
   real, allocatable :: swu_can         (:,:) !< upwards SW through canopy
-  real, allocatable :: PARdir_can       (:) !< direct PAR through canopy
-  real, allocatable :: PARdif_can       (:) !< diffuse PAR through canopy
-  real, allocatable :: PARu_can         (:) !< upwards PAR through canopy
+  real, allocatable :: PARd_can         (:,:,:) !< direct PAR through canopy
+  real, allocatable :: PARu_can         (:,:,:) !< upwards PAR through canopy
   real, allocatable :: lwd_can         (:) !< downwards LW through canopy
   real, allocatable :: lwu_can         (:) !< upwards LW through canopy
   real, allocatable :: lw_leaflayer    (:) !< LW emission by leaves per layer
@@ -389,9 +388,8 @@ contains
     allocate(swdir_can(ncanopy+1,nband_can))
     allocate(swdif_can(ncanopy+1,nband_can))
     allocate(swu_can(ncanopy+1,nband_can))
-    allocate(PARdir_can(ncanopy+1))
-    allocate(PARdif_can(ncanopy+1))
-    allocate(PARu_can  (ncanopy+1))
+    allocate(PARd_can  (2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
+    allocate(PARu_can  (2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
     allocate(lwd_can(ncanopy+1))
     allocate(lwu_can(ncanopy+1))
     allocate(lw_leaflayer(ncanopy))
@@ -399,8 +397,7 @@ contains
     albdir_can = 0
     albdif_can = 0
     albsw_can = 0
-    PARdir_can = 0
-    PARdif_can = 0
+    PARd_can   = 0
     PARu_can   = 0
     swdir_can = 0
     swdif_can = 0
@@ -584,8 +581,7 @@ contains
     deallocate(swdir_can)
     deallocate(swdif_can)
     deallocate(swu_can)
-    deallocate(PARdir_can)
-    deallocate(PARdif_can)
+    deallocate(PARd_can)
     deallocate(PARu_can)
     deallocate(lwd_can)
     deallocate(lwu_can)
@@ -648,6 +644,9 @@ contains
         absSWleaf_sun(:,:) = sum(absleaf_sun_b, dim=3)
         absPARleaf_sun(:,:) = absleaf_sun_b(:,:,iband_par)
 
+        PARd_can(i,j,:) = swdir_can(:ncanopy+1, iband_par) + swdif_can(:ncanopy+1, iband_par)
+        PARu_can(i,j,:) = swu_can(:ncanopy+1, iband_par)
+
         ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad
         sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon),1.e-10)
         if (sinbeta>0.035) then ! daytime, same threshold as radpar
@@ -661,7 +660,12 @@ contains
         endif
 
     end if
-   !                #############  LW  into leaf #################               !
+   !                  #############  LW  into leaf #################               !
+   !other necessary terms
+   ! convert humidity into vapor pressure
+    do k_can=1,ncanopy+50
+      humidairpa(k_can) =  watervappres(qt0(i,j,k_can),presf(k_can)) !
+    enddo
 
     if(def_LWcan) then ! we need to build a LW profile according to air characteristics
      ! downwelling LW irradiance at top of canopy

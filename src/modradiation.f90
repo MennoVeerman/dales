@@ -264,6 +264,8 @@ subroutine radpar
   use modglobal,    only : i1,j1,kmax, k1,ih,jh,dzf,cp,xtime,rtimee,xday,xlat,xlon,boltz
   use modfields,    only : ql0, sv0, rhof,exnf,thl0
   use modsurfdata,  only : tauField
+  use modcanopy,    only : lcanopy, ncanopy
+
   implicit none
   real, allocatable :: lwpt(:),lwpb(:)
   real, allocatable :: tau(:)

@@ -771,10 +771,11 @@ contains
     use modglobal,   only : xday,xlat,xlon,imax,xtime,rtimee,i1
     use shr_orb_mod, only : shr_orb_decl
     use modmpi,      only : myid
-    use modsurfdata, only : albedoav_surf,albedo_surf
+    use modsurfdata, only : albedoav_surf,albedo_surf,iband_uvs_s,iband_uvs_e,iband_nir_s,iband_nir_e,weight_b
     use modcanopy,   only : lcanopyeb,albdir_can,albdif_can
 
     implicit none
+    integer             :: ib
     integer, intent(in) :: j
     logical,intent(out) :: sunUp
     real                :: dayForSW
@@ -813,10 +814,25 @@ contains
     if (all(solarZenithAngleCos(:) >= tiny(solarZenithAngleCos))) then
       sunUp = .true.
       if(lcanopyeb) then ! albedo is provided by canopy radiation subroutine of previous timestep
-        aldir(1:imax) = albdir_can(2:i1,j,2)
-        asdir(1:imax) = albdir_can(2:i1,j,1)
-        aldif(1:imax) = albdif_can(2:i1,j,2)
-        asdif(1:imax) = albdif_can(2:i1,j,1)
+        asdir(:) = 0
+        aldir(:) = 0
+        asdif(:) = 0
+        aldif(:) = 0
+
+        do ib=iband_uvs_s,iband_uvs_e
+            asdir(1:imax) = asdir(1:imax) + albdir_can(2:i1,j,ib) * weight_b(ib)
+            asdif(1:imax) = asdif(1:imax) + albdif_can(2:i1,j,ib) * weight_b(ib)
+        end do
+        asdir(1:imax) = asdir(1:imax) / sum(weight_b(iband_uvs_s:iband_uvs_e))
+        asdif(1:imax) = asdif(1:imax) / sum(weight_b(iband_uvs_s:iband_uvs_e))
+
+        do ib=iband_nir_s,iband_nir_e
+            aldir(1:imax) = aldir(1:imax) + albdir_can(2:i1,j,ib) * weight_b(ib)
+            aldif(1:imax) = aldif(1:imax) + albdif_can(2:i1,j,ib) * weight_b(ib)
+        end do
+        aldir(1:imax) = aldir(1:imax) / sum(weight_b(iband_nir_s:iband_nir_e))
+        aldif(1:imax) = aldif(1:imax) / sum(weight_b(iband_nir_s:iband_nir_e))
+
       else if (lCnstAlbedo) then
         aldir = albedoav_surf
         asdir = albedoav_surf

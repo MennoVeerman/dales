@@ -35,7 +35,9 @@ PUBLIC :: initcanstat, canstat, exitcanstat
 save
 !NetCDF variables
   integer,parameter :: nvar = 31
+  integer,parameter :: nvar2 = 2 !variables on cell interfaces
   character(80),dimension(nvar,4) :: ncname
+  character(80),dimension(nvar2,4) :: ncname2
 
   real    :: dtav, timeav
   integer(kind=longint) :: idtav,itimeav,tnext,tnextwrite
@@ -72,6 +74,8 @@ save
   real, allocatable :: absSWleaf_shadav(:)
   real, allocatable :: absSWleaf_allsunav(:)
   real, allocatable :: absSWlayerav    (:)
+  real, allocatable :: PARd_canav      (:)
+  real, allocatable :: PARu_canav      (:)
   real, allocatable :: cfSLav          (:)
 
   real, allocatable :: shcanmn  (:)
@@ -101,6 +105,8 @@ save
   real, allocatable :: absSWleaf_shadmn(:)
   real, allocatable :: absSWleaf_allsunmn(:)
   real, allocatable :: absSWlayermn(:)
+  real, allocatable :: PARd_canmn  (:)
+  real, allocatable :: PARu_canmn  (:)
   real, allocatable :: cfSLmn   (:)
 
 contains
@@ -184,6 +190,8 @@ contains
     allocate(absSWleaf_shadav    (ncanopy))
     allocate(absSWleaf_allsunav  (ncanopy))
     allocate(absSWlayerav  (ncanopy))
+    allocate(PARd_canav (ncanopy+1))
+    allocate(PARu_canav (ncanopy+1))
     allocate(cfSLav   (ncanopy))
 
     allocate(shcanmn  (ncanopy))
@@ -213,6 +221,8 @@ contains
     allocate(absSWleaf_shadmn    (ncanopy))
     allocate(absSWleaf_allsunmn  (ncanopy))
     allocate(absSWlayermn  (ncanopy))
+    allocate(PARd_canmn(ncanopy+1))
+    allocate(PARu_canmn(ncanopy+1))
     allocate(cfSLmn   (ncanopy))
 
     shcanmn   = 0.0
@@ -242,6 +252,8 @@ contains
     absSWleaf_shadmn  = 0.0
     absSWleaf_allsunmn  = 0.0
     absSWlayermn  = 0.0
+    PARd_canmn = 0.0
+    PARu_canmn = 0.0
     cfSLmn    = 0.0
 
     if(myid==0)then
@@ -287,8 +299,11 @@ contains
         call ncinfo(ncname( 29,:),'absSWleaf_shadmn','Absorbed SW by sahded leaves','W/m2','tt')
         call ncinfo(ncname( 30,:),'absSWleaf_allsunmn','Absorbed SW by sunlit leaves','W/m2','tt')
         call ncinfo(ncname( 31,:),'absSWlayermn','Absorbed SW in the layer','W/m2','tt') ! weighing sunlit and shaded leave fraction
+        call ncinfo(ncname2( 1,:),'PAR_downmn','downwelling PAR within canopy','W/m2','tt') ! weighing sunlit and shaded leave fraction
+        call ncinfo(ncname2( 2,:),'PAR_upmn','upwelling PAR within canopy','W/m2','tt') ! weighing sunlit and shaded leave fraction
 
         call define_nc( ncid_prof, NVar, ncname)
+        call define_nc( ncid_prof, NVar2, ncname2)
       end if
 
    end if
@@ -325,7 +340,7 @@ contains
                           t_leafsun,gcc_leafshad,gcc_leafsun,ci_leafshad,ci_leafsun,&
                           absSWleaf_shad,absSWleaf_allsun,absSWlayer,&
                           sh_leafsun,sh_leafshad,le_leafsun,le_leafshad,An_leafsun,An_leafshad,rb_leafsun,rb_leafshad,&
-                          LWin_leafsun,LWin_leafshad,LWout_leafsun,LWout_leafshad
+                          LWin_leafsun,LWin_leafshad,LWout_leafsun,LWout_leafshad,PARd_can,PARu_can
     implicit none
 
     shcanav   = 0.
@@ -355,6 +370,8 @@ contains
     absSWleaf_shadav   = 0.
     absSWleaf_allsunav   = 0.
     absSWlayerav   = 0.
+    PARd_canav = 0.
+    PARu_canav = 0.
     cfSLav    = 0.
 
     call slabsum(shcanav  ,1,ncanopy, sh_can  ,2-ih,i1+ih,2-jh,j1+jh,1,ncanopy,2,i1,2,j1,1,ncanopy)
@@ -384,6 +401,8 @@ contains
     call slabsum(absSWleaf_shadav     ,1,ncanopy, absSWleaf_shad  (:,:,1:ncanopy)  ,2-ih,i1+ih,2-jh,j1+jh,1,ncanopy,2,i1,2,j1,1,ncanopy)
     call slabsum(absSWleaf_allsunav   ,1,ncanopy, absSWleaf_allsun(:,:,1:ncanopy)  ,2-ih,i1+ih,2-jh,j1+jh,1,ncanopy,2,i1,2,j1,1,ncanopy)
     call slabsum(absSWlayerav         ,1,ncanopy, absSWlayer      (:,:,1:ncanopy)  ,2-ih,i1+ih,2-jh,j1+jh,1,ncanopy,2,i1,2,j1,1,ncanopy)
+    call slabsum(PARd_canav         ,1,ncanopy+1, PARd_can(:,:,:)    ,2-ih,i1+ih,2-jh,j1+jh,1,ncanopy+1,2,i1,2,j1,1,ncanopy+1)
+    call slabsum(PARu_canav         ,1,ncanopy+1, PARu_can(:,:,:)    ,2-ih,i1+ih,2-jh,j1+jh,1,ncanopy+1,2,i1,2,j1,1,ncanopy+1)
 
     cfSLav = cfSL  ! no slab average needed as it only depends on time, not on space
  !    ADD SLAB AVERAGES TO TIME MEAN
@@ -415,6 +434,8 @@ contains
     absSWleaf_shadmn    = absSWleaf_shadmn    + absSWleaf_shadav   / ijtot
     absSWleaf_allsunmn  = absSWleaf_allsunmn  + absSWleaf_allsunav / ijtot
     absSWlayermn = absSWlayermn  + absSWlayerav / ijtot
+    PARd_canmn = PARd_canmn + PARd_canav / ijtot
+    PARu_canmn = PARu_canmn + PARu_canav / ijtot
     cfSLmn       = cfSLmn      + cfSLav
 
   end subroutine do_canstat
@@ -428,6 +449,7 @@ contains
       use modcanopy, only : ncanopy,pai,padf,paih
       implicit none
       real,dimension(ncanopy,nvar) :: vars
+      real,dimension(ncanopy+1,nvar2) :: vars2
       integer nsecs, nhrs, nminut,k
 
 
@@ -460,6 +482,8 @@ contains
       absSWleaf_shadmn   = absSWleaf_shadmn     /nsamples
       absSWleaf_allsunmn = absSWleaf_allsunmn   /nsamples
       absSWlayermn       = absSWlayermn         /nsamples
+      PARd_canmn = PARd_canmn /nsamples
+      PARu_canmn = PARu_canmn /nsamples
       shcanmn    = shcanmn    /nsamples
       lecanmn    = lecanmn    /nsamples
       fco2canmn  = fco2canmn  /nsamples
@@ -553,7 +577,10 @@ contains
         vars(:, 29) = absSWleaf_shadmn
         vars(:, 30) = absSWleaf_allsunmn
         vars(:, 31) = absSWlayermn
+        vars2(:, 1) = PARd_canmn
+        vars2(:, 2) = PARu_canmn
        call writestat_nc(ncid_prof,nvar,ncname,vars(1:ncanopy,:),nrec_prof,ncanopy)
+       call writestat_nc(ncid_prof,nvar2,ncname2,vars2(1:ncanopy,:),nrec_prof,ncanopy+1)
       end if
     end if !
 
@@ -585,6 +612,8 @@ contains
     absSWleaf_shadmn    = 0.0
     absSWleaf_allsunmn  = 0.0
     absSWlayermn  = 0.0
+    PARd_canmn = 0.0
+    PARu_canmn = 0.0
 
   end subroutine writecanstat
 
