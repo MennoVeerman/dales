@@ -657,7 +657,7 @@ contains
       z0m        = z0mav
       z0h        = z0hav
     endif
-    
+
     albedo_rad(:,:) = albedo_surf(:,:)
     ! 3. Initialize surface layer
     allocate(ustar   (i2,j2))
@@ -709,7 +709,7 @@ contains
         else
           allocate(gsun_old(2:i1,2:j1,nz_gauss))
         endif
-      endif  
+      endif
     endif
     return
   end subroutine initsurface
@@ -878,7 +878,7 @@ contains
 
           phimzf = phim(zf(1)/obl(i,j))
           phihzf = phih(zf(1)/obl(i,j))
-          
+
           dudz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(upcu/horv)
           dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(vpcv/horv)
           dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*zf(1))
@@ -911,7 +911,7 @@ contains
 
             phimzf = phim(zf(1)/obl(i,j))
             phihzf = phih(zf(1)/obl(i,j))
-            
+
             upcu  = 0.5 * (u0(i,j,1) + u0(i+1,j,1)) + cu
             vpcv  = 0.5 * (v0(i,j,1) + v0(i,j+1,1)) + cv
             horv  = sqrt(upcu ** 2. + vpcv ** 2.)
@@ -994,10 +994,10 @@ contains
               svflux(i,j,n) = wsvsurf(n)
             enddo
           endif
-         
+
           phimzf = phim(zf(1)/obl(i,j))
           phihzf = phih(zf(1)/obl(i,j))
-          
+
           dudz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(upcu/horv)
           dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(vpcv/horv)
           dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*zf(1))
@@ -1047,7 +1047,7 @@ contains
 
     ! Transfer ustar to neighbouring cells
     call excj( ustar  , 1, i2, 1, j2, 1,1)
-    
+
     tskin_rad (:,:) = tskin_surf (:,:)
     qskin_rad (:,:) = qskin_surf (:,:)
 
@@ -1173,7 +1173,7 @@ contains
                 if(Rib > 0) L = 0.01
                 if(Rib < 0) L = -0.01
              end if
-             
+
              do while (.true.)
                 iter    = iter + 1
                 Lold    = L
@@ -1312,7 +1312,7 @@ contains
           if(Rib > 0) L = 0.01
           if(Rib < 0) L = -0.01
        end if
-       
+
        do while (.true.)
           iter    = iter + 1
           Lold    = L
@@ -1389,7 +1389,7 @@ contains
 
   ! stability function Phi for momentum.
   ! Many functional forms of Phi have been suggested, see e.g. Optis 2015
-  ! Phi and Psi above are related by an integral and should in principle match, 
+  ! Phi and Psi above are related by an integral and should in principle match,
   ! currently they do not.
   ! FJ 2018: For very stable situations, zeta > 1 add cap to phi - the linear expression is valid only for zeta < 1
  function phim(zeta)
@@ -1409,7 +1409,7 @@ contains
     return
   end function phim
 
-   ! stability function Phi for heat.  
+   ! stability function Phi for heat.
  function phih(zeta)
     implicit none
     real             :: phih
@@ -1427,7 +1427,7 @@ contains
     return
   end function phih
 
-  
+
   function E1(x)
   implicit none
     real             :: E1
@@ -1439,7 +1439,7 @@ contains
     do k=1,99
       !E1sum = E1sum + (-1.0) ** (k + 0.0) * x ** (k + 0.0) / ( (k + 0.0) * factorial(k) )
        E1sum = E1sum + (-1.0 * x) ** k / ( k * factorial(k) )  ! FJ changed this for compilation with cray fortran
-                                                          
+
     end do
     E1 = -0.57721566490153286060 - log(x) - E1sum
 
@@ -1650,7 +1650,7 @@ contains
       Wl         = Wlav
     endif
     cliq       = 0.
-    
+
 
   end subroutine initlsm
 
@@ -1698,8 +1698,8 @@ contains
     real     :: local_gcco2av
     real     :: local_alb_canav
     real     :: local_Respav
-    
-    
+
+
     patchx = 0
     patchy = 0
 
@@ -1804,14 +1804,14 @@ contains
            else
              f1  = 1.
            end if
- 
+
            ! Soil moisture availability
            f2  = (phifc - phiwp) / (phitot(i,j) - phiwp)
            ! Prevent f2 becoming less than 1
            f2  = max(f2, 1.)
            ! Put upper boundary on f2 for cases with very dry soils
            f2  = min(1.e8, f2)
- 
+
            ! Response of stomata to vapor deficit of atmosphere
            esat = 0.611e3 * exp(17.2694 * (thl0(i,j,1) - 273.16) / (thl0(i,j,1) - 35.86))
            if(lhetero) then
@@ -1819,17 +1819,17 @@ contains
            else
              e    = qt0(i,j,1) * ps / 0.622
            endif
- 
+
            f3   = 1. / exp(-gD(i,j) * (esat - e) / 100.)
- 
+
            ! Response to temperature
            exnera  = (presf(1) / pref0) ** (rd/cp)
            Tatm    = exnera * thl0(i,j,1) + (rlv / cp) * ql0(i,j,1)
            f4      = 1./ (1. - 0.0016 * (298.0 - Tatm) ** 2.)
- 
+
            rsveg(i,j)  = rsmin(i,j) / LAI_surf(i,j) * f1 * f2 * f3! * f4 Not considered anymore
- 
- 
+
+
         else !(lrsAgs) then
          ! 2.1a  - Recalculate vegetation resistance using AGS
           if (.not. linags) then !initialize AGS
@@ -1932,7 +1932,7 @@ contains
               Fnet(itg)  = Fsun * fSL(itg) + Fshad * (1 - fSL(itg))
               gnet(itg)  = gsun * fSL(itg) + gshad * (1 - fSL(itg))
             end do
-          
+
             An       = LAI_surf(i,j) * sum(weight_g * Fnet) ! temporary An
             gcco2    = LAI_surf(i,j) * sum(weight_g * gnet)
             if (lrelaxci_surf) then
@@ -1960,7 +1960,7 @@ contains
           ! Calculate upscaling from leaf to canopy: net flow  CO2 into the plant (An)
             AGSa1    = 1.0 / (1 - f0)
             Dstar    = D0 / (AGSa1 * (f0 - fmin))
-            
+
             tempy    = alphac * Kx * PAR / (Am + Rdark)
             An       = (Am + Rdark) * (1 - 1.0 / (Kx *  LAI_surf(i,j)) * (E1(tempy * exp(-Kx*LAI_surf(i,j))) - E1(tempy)))
             gc_inf    = LAI_surf(i,j) * (gmin/nuco2q + AGSa1 * fstr * An / ((co2abs - CO2comp) * (1 + Ds / Dstar)))
@@ -1984,15 +1984,15 @@ contains
               else if (.not. cisurf_old_set) then
                 ci_old(i,j) = ci
               endif
-            endif !lrelaxci_surf  
+            endif !lrelaxci_surf
 
           end if ! splitleaf
-         
+
 
           ! Calculate surface resistances for moisture and carbon dioxide
           rsAgs    = 1.0 / (nuco2q * gcco2)
           rsCO2    = 1.0 / gcco2
-          
+
           ! Calculate net flux of CO2 into the plant (An)
           An       = - (co2abs - ci) / (ra(i,j) + rsCO2)
 
@@ -2024,7 +2024,7 @@ contains
           PARField  (i,j) = PAR
 
         endif !lrsAgs
-        
+
         if (lcanopyeb) then ! update surface Qnet if canopy above is present
           if(iradiation > 0) then
             if(iradiation == 1 .and. useMcICA) then
@@ -2033,19 +2033,19 @@ contains
                 swuavn(i,j,2:nradtime) = swuavn(i,j,1:nradtime-1)
                 lwdavn(i,j,2:nradtime) = lwdavn(i,j,1:nradtime-1)
                 lwuavn(i,j,2:nradtime) = lwuavn(i,j,1:nradtime-1)
-         
+
                 swdavn(i,j,1) = swd(i,j,1)
                 swuavn(i,j,1) = swu(i,j,1)
                 lwdavn(i,j,1) = lwd(i,j,1)
                 lwuavn(i,j,1) = lwu(i,j,1)
-         
+
               end if
-         
+
               swdav = sum(swdavn(i,j,:)) / nradtime
               swuav = sum(swuavn(i,j,:)) / nradtime
               lwdav = sum(lwdavn(i,j,:)) / nradtime
               lwuav = sum(lwuavn(i,j,:)) / nradtime
-         
+
               Qnet(i,j) = -(swdav + swuav + lwdav + lwuav)
             elseif(iradiation == irad_par .or. iradiation == 10) then !  Delta-eddington approach (2)  .or. rad_user (10)
               swdav      = -swd(i,j,1)
@@ -2218,7 +2218,7 @@ contains
         phiw(i,j,ksoilmax) = phiwm(i,j,ksoilmax) + rk3coef * (- lambdash(i,j,ksoilmax-1) * &
         (phiw(i,j,ksoilmax) - phiw(i,j,ksoilmax-1)) / dzsoil(ksoilmax-1) + gammash(i,j,ksoilmax-1) &
         - (phifrac(i,j,ksoilmax) * LEveg) / (rhow*rlv) ) / dzsoil(ksoilmax)
-   
+
       end do
     end do
 
