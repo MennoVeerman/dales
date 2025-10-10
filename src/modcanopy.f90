@@ -644,8 +644,10 @@ contains
         absSWleaf_sun(:,:) = sum(absleaf_sun_b, dim=3)
         absPARleaf_sun(:,:) = absleaf_sun_b(:,:,iband_par)
 
-        PARd_can(i,j,:) = swdir_can(:ncanopy+1, iband_par) + swdif_can(:ncanopy+1, iband_par)
-        PARu_can(i,j,:) = swu_can(:ncanopy+1, iband_par)
+        PARd_can(i,j,1:ncanopy) = swdir_can(1:ncanopy, iband_par) + swdif_can(1:ncanopy, iband_par)
+        PARd_can(i,j,ncanopy+1) = (SWdirTOC + SWdifTOC) * weight_b(iband_par)
+        PARu_can(i,j,1:ncanopy+1) = swu_can(1:ncanopy+1, iband_par)
+
 
         ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad
         sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon),1.e-10)
@@ -847,7 +849,7 @@ contains
             swdir(i,j,:ncanopy) = sum(swdir_can(:ncanopy,:), dim=2)
             swdif(i,j,:ncanopy) = sum(swdif_can(:ncanopy,:), dim=2)
             swd  (i,j,:ncanopy) = sum(swdir_can(:ncanopy,:) + swdif_can(:ncanopy,:), dim=2)
-            swu  (i,j,:ncanopy) = sum(swu_can(:ncanopy,:), dim=2)
+            swu  (i,j,:ncanopy+1) = sum(swu_can(:ncanopy+1,:), dim=2)
           endif
           ! update longwave in time steps with radiation
           if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then
@@ -859,7 +861,7 @@ contains
             swdir(i,j,:ncanopy) = -sum(swdir_can(:ncanopy,:), dim=2)
             swdif(i,j,:ncanopy) = -sum(swdif_can(:ncanopy,:), dim=2)
             swd  (i,j,:ncanopy) = -sum(swdir_can(:ncanopy,:) + swdif_can(:ncanopy,:), dim=2)
-            swu  (i,j,:ncanopy) = sum(swu_can(:ncanopy,:),dim=2)     !should be on
+            swu  (i,j,:ncanopy+1) = sum(swu_can(:ncanopy+1,:),dim=2)     !should be on
           endif
           ! update longwave in time steps with radiation
           if (((itimerad==0 .or. timee==(tnext-itimerad)) .and. rk3step==1) .or. (timee==dt)) then

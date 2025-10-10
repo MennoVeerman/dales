@@ -299,8 +299,8 @@ contains
         call ncinfo(ncname( 29,:),'absSWleaf_shadmn','Absorbed SW by sahded leaves','W/m2','tt')
         call ncinfo(ncname( 30,:),'absSWleaf_allsunmn','Absorbed SW by sunlit leaves','W/m2','tt')
         call ncinfo(ncname( 31,:),'absSWlayermn','Absorbed SW in the layer','W/m2','tt') ! weighing sunlit and shaded leave fraction
-        call ncinfo(ncname2( 1,:),'PAR_downmn','downwelling PAR within canopy','W/m2','tt') ! weighing sunlit and shaded leave fraction
-        call ncinfo(ncname2( 2,:),'PAR_upmn','upwelling PAR within canopy','W/m2','tt') ! weighing sunlit and shaded leave fraction
+        call ncinfo(ncname2( 1,:),'PAR_downmn','downwelling PAR within canopy','W/m2','mt')
+        call ncinfo(ncname2( 2,:),'PAR_upmn','upwelling PAR within canopy','W/m2','mt')
 
         call define_nc( ncid_prof, NVar, ncname)
         call define_nc( ncid_prof, NVar2, ncname2)
@@ -580,7 +580,7 @@ contains
         vars2(:, 1) = PARd_canmn
         vars2(:, 2) = PARu_canmn
        call writestat_nc(ncid_prof,nvar,ncname,vars(1:ncanopy,:),nrec_prof,ncanopy)
-       call writestat_nc(ncid_prof,nvar2,ncname2,vars2(1:ncanopy,:),nrec_prof,ncanopy+1)
+       call writestat_nc(ncid_prof,nvar2,ncname2,vars2(1:ncanopy+1,:),nrec_prof,ncanopy+1)
       end if
     end if !
 

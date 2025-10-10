@@ -343,6 +343,22 @@ SAVE
 
 contains
 
+function rho_c_dif(sigma)
+    real :: rho_c_dif
+    real, intent(in) :: sigma
+
+    rho_c_dif = 0.0048*exp(19.3141*sigma-56.0266*sigma**2+97.1420*sigma**3-84.7650*sigma**4+29.4607*sigma**5)
+    return
+end function rho_c_dif
+
+function rho_c_dir(sigma, mu0)
+    real :: rho_c_dir
+    real, intent(in) :: sigma, mu0
+
+    rho_c_dir =  0.4203*sigma**1.1370 * exp(-(2.4990*(1-sigma)**0.3316) * mu0) + 0.0164*exp(3.2527*sigma)
+    return
+end function rho_c_dir
+
 subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_meth, & ! in
                       Hshad,Hsun,fracSL,                                 & ! out needed for vegetation
                       effalb_dir,effalb_dif,effalb_phi,phidircan,phidifcan,phiucan,isoil) ! out needed for radiation if lcanopyeb
@@ -387,6 +403,7 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
   real :: PHIdfD_b,PHIdrD_b,PHIdfU_b,PHIdrU_b,PHIdirprof_b
   !needed for approach by goudiraan and van laar  1996
   real :: sigma,weight,rho_s,eta_dir,eta_dif,reta1,reta2,corrv1,corrv2,denom1,denom2
+  real :: exp_dir_dif,denom_dir,exp_dif_dif,denom_dif
   real :: phid_10_dir,phid_20_dir,phiu_10_dir,phiu_20_dir
   real :: phid_10_dif,phid_20_dif,phiu_10_dif,phiu_20_dif
   real :: phidirup,phidirdown,phidifup,phidifdown
@@ -406,8 +423,10 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
       kdrbl    = clump * 0.5 / sinbeta                           ! Direct radiation extinction coefficient for black leaves
       kdf      = kdfbl * sqrt(1.0-sigma)
       kdr      = kdrbl * sqrt(1.0-sigma)
-      ref      = (1.0 - sqrt(1.0-sigma)) / (1.0 + sqrt(1.0-sigma)) ! Reflection coefficient
-      ref_dir  = 2 * ref / (1.0 + 1.6 * sinbeta)
+      !ref      = (1.0 - sqrt(1.0-sigma)) / (1.0 + sqrt(1.0-sigma)) ! Reflection coefficient
+      !ref_dir  = 2 * ref / (1.0 + 1.6 * sinbeta)
+      ref      = rho_c_dif(sigma) !(1.0 - sqrt(1.0-sigma)) / (1.0 + sqrt(1.0-sigma)) ! Reflection coefficient
+      ref_dir  = rho_c_dir(sigma, sinbeta) !2 * ref / (1.0 + 1.6 * sinbeta)
       PHIdir_TOC_b = PHIdir_toc * weight
       PHIdif_TOC_b = PHIdif_toc * weight
 
@@ -478,21 +497,26 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
         !DIR:
         rho_s = alb
         eta_dir = (ref_dir-rho_s) /(rho_s-(1./ref_dir))
-        phid_10_dir = PHIdir_TOC_b/(1+eta_dir*exp(-2*kdr*LAI))
-        phid_20_dir = PHIdir_TOC_b*eta_dir*exp(-2*kdr*LAI)/(1+eta_dir*exp(-2*kdr*LAI))
-        phiu_10_dir = PHIdir_TOC_b*ref_dir/(1+(eta_dir*exp(-2*kdr*LAI)))
-        phiu_20_dir = PHIdir_TOC_b*eta_dir*exp(-2*kdr*LAI)/(ref_dir*(1+eta_dir*exp(-2*kdr*LAI)))
+        exp_dir_dif = exp(-kdf*LAI) * exp(-kdr*LAI)
+        denom_dir = (1+eta_dir*exp_dir_dif)
+        phid_10_dir = PHIdir_TOC_b/denom_dir
+        phid_20_dir = PHIdir_TOC_b*eta_dir*exp_dir_dif / denom_dir
+        phiu_10_dir = PHIdir_TOC_b*ref_dir/denom_dir
+        phiu_20_dir = PHIdir_TOC_b*eta_dir*exp_dir_dif / (ref_dir * denom_dir)
         !DIF
         eta_dif = (ref-rho_s) /(rho_s-(1./ref))
-        phid_10_dif = PHIdif_TOC_b/(1+eta_dif*exp(-2*kdf*LAI))
-        phid_20_dif = PHIdif_TOC_b*eta_dif*exp(-2*kdf*LAI)/(1+eta_dif*exp(-2*kdf*LAI))
-        phiu_10_dif = PHIdif_TOC_b*ref/(1+(eta_dif*exp(-2*kdf*LAI)))
-        phiu_20_dif = PHIdif_TOC_b*eta_dif*exp(-2*kdf*LAI)/(ref*(1+eta_dif*exp(-2*kdf*LAI)))
+        exp_dif_dif = exp(-2*kdf*LAI)
+        denom_dif = (1+eta_dif*exp_dif_dif)
+        phid_10_dif = PHIdif_TOC_b/denom_dif
+        phid_20_dif = PHIdif_TOC_b*eta_dif*exp_dif_dif / denom_dif
+        phiu_10_dif = PHIdif_TOC_b*ref/denom_dif
+        phiu_20_dif = PHIdif_TOC_b*eta_dif*exp_dif_dif / (ref * denom_dif)
+
         !appendix 4 in Goud1996
         reta1 = (ref-rho_s)/(rho_s*ref-1)
         reta2 = (ref_dir-rho_s)/(rho_s*ref_dir-1)
         corrv1 = reta1*exp(-2*kdf*LAI)*ref
-        corrv2 = reta2*exp(-2*kdr*LAI)*ref_dir
+        corrv2 = reta2*exp(-kdr*LAI)*exp(-kdf*LAI)*ref_dir
         denom1 = 1+corrv1
         denom2 = 1+corrv2
         do k = 1, layers ! loop over the different LAI locations
@@ -500,8 +524,8 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
           if (ib==1) fracSL(k)   = exp(-kdrbl * iLAI)      ! Fraction of sun-lit leaves
           PHIdirprof = (1.0-sigma) * PHIdir_TOC_b * fracSL(k)              ! Purely direct PHI (can only be downward) reaching leaves
 
-          phidirdown    = phid_10_dir * exp(-kdr * iLAI) + phid_20_dir * exp(kdr * iLAI)    ! PHI down due to PHIdirTOC
-          phidirup      = phiu_10_dir * exp(-kdr * iLAI) + phiu_20_dir * exp(kdr * iLAI) ! PHI up due to PHIdirTOC
+          phidirdown    = phid_10_dir * exp(-kdr * iLAI) + phid_20_dir * exp(kdf * iLAI)    ! PHI down due to PHIdirTOC
+          phidirup      = phiu_10_dir * exp(-kdr * iLAI) + phiu_20_dir * exp(kdf * iLAI) ! PHI up due to PHIdirTOC
           phidifdown    = phid_10_dif * exp(-kdf * iLAI) + phid_20_dif * exp(kdf * iLAI)    ! PHI down due to PHIdifTOC
           phidifup      = phiu_10_dif * exp(-kdf * iLAI) + phiu_20_dif * exp(kdf * iLAI)    ! PHI up due to PHIdifTOC
           phidirnew     = PHIdir_TOC_b * fracSL(k)* (1.0-sigma)  ! PHI dir profile
@@ -543,14 +567,16 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
 
         ! PHI reflected by canopy, see appendix4 in Goud 1996
          irefl     = PHIdir_TOC_b*(ref_dir+corrv2/ref_dir)/denom2 + PHIdif_TOC_b*(ref+corrv1/ref)/denom1! Goudriaan 1996, p218
+         phiucan(layers+1,ib)   = irefl
          irefl_dif = PHIdif_TOC_b*(ref+corrv1/ref)/denom1
          irefl_dir = PHIdir_TOC_b*(ref_dir+corrv2/ref_dir)/denom2
          effalb_phi(ib) = irefl/(PHIdir_TOC_b+PHIdif_TOC_b)
          effalb_dir(ib) = irefl_dir/PHIdir_TOC_b
          effalb_dif(ib) = irefl_dif/PHIdif_TOC_b
         ! PHI absorbed soil:
-         isoil(ib) = ((1-ref_dir) * PHIdir_TOC_b * (exp(-kdr * LAI)- exp(kdr * LAI) * corrv2/ref_dir)/denom2 &  !Goudriaan 1996, p218
-                + (1-ref)     * PHIdif_TOC_b * (exp(-kdf * LAI)- exp(kdf * LAI) * corrv1/ref    )/denom1)
+         !isoil(ib) = ((1-ref_dir) * PHIdir_TOC_b * (exp(-kdr * LAI)- exp(kdf * LAI) * corrv2/ref_dir)/denom2 &  !Goudriaan 1996, p218
+         !       + (1-ref)     * PHIdif_TOC_b * (exp(-kdf * LAI)- exp(kdf * LAI) * corrv1/ref    )/denom1)
+         isoil(ib) = (phidircan(1,ib) + phidifcan(1,ib)) * (1-rho_s)
       endif!vegrad_meth
   end do
 
