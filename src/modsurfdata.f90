@@ -567,7 +567,6 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
 
         ! PHI reflected by canopy, see appendix4 in Goud 1996
          irefl     = PHIdir_TOC_b*(ref_dir+corrv2/ref_dir)/denom2 + PHIdif_TOC_b*(ref+corrv1/ref)/denom1! Goudriaan 1996, p218
-         phiucan(layers+1,ib)   = irefl
          irefl_dif = PHIdif_TOC_b*(ref+corrv1/ref)/denom1
          irefl_dir = PHIdir_TOC_b*(ref_dir+corrv2/ref_dir)/denom2
          effalb_phi(ib) = irefl/(PHIdir_TOC_b+PHIdif_TOC_b)
