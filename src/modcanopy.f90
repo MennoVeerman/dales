@@ -83,6 +83,7 @@ module modcanopy
 
   real, allocatable :: temp_absleaf_shad_b    (:,:)   !< SW at sunny leaves per vertical level and leaf orientation [W m-2 leaf]
   real, allocatable :: absSWleaf_allsun (:,:,:) !< SW at sunny leaves per vertical level averaged over all leaf orientations [W m-2leaf]
+  real, allocatable :: absPARleaf_allsun (:,:,:) !< SW at sunny leaves per vertical level averaged over all leaf orientations [W m-2leaf]
   real, allocatable :: absSWlayer       (:,:,:) !< SW abosrbed per vertical level [W m-2 ground]
   real, allocatable :: cfSL_h          (:)     !< Fraction of sunlit leaves at half levels [-]
   real, allocatable :: cfSL            (:)     !< Fraction of sunlit leaves at full levels [-]
@@ -325,6 +326,7 @@ contains
     allocate(absSWleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
     allocate(absPARleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
     allocate(absSWleaf_allsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
+    allocate(absPARleaf_allsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
     allocate(temp_absleaf_shad_b(ncanopy+1,nband_can))
     allocate(absleaf_sun_b(ncanopy+1,nangle_gauss,nband_can))
     allocate(absSWleaf_sun(ncanopy+1,nangle_gauss))
@@ -519,6 +521,7 @@ contains
     deallocate(absSWleaf_shad)
     deallocate(absPARleaf_shad)
     deallocate(absSWleaf_allsun)
+    deallocate(absPARleaf_allsun)
     deallocate(temp_absleaf_shad_b)
     deallocate(absleaf_sun_b)
     deallocate(absSWleaf_sun)
@@ -719,7 +722,7 @@ contains
     windsp(:) = sqrt(u0(i,j,1:ncanopy)**2+v0(i,j,1:ncanopy)**2)
     do k_can =1,ncanopy
      !shaded
-      call leafeb_ags(absSWleaf_shad(i,j,k_can), LWin_leafshad(i,j,k_can), leaf_eps, transpiretype, lwidth, llength, & ! in
+      call leafeb_ags(absSWleaf_shad(i,j,k_can), absPARleaf_shad(i,j,k_can), LWin_leafshad(i,j,k_can), leaf_eps, transpiretype, lwidth, llength, & ! in
                       tmp0(i,j,k_can), humidairpa(k_can),qt0(i,j,k_can), windsp(k_can), presf(k_can),       & ! in
                       rhof(k_can), svm(i,j,k_can,indCO2), phitot(i,j),                                      & ! in
                       gcc_leafshad_old(i,j,k_can),ci_leafshad_old(i,j,k_can),rk3coef,                       & ! in
@@ -747,7 +750,8 @@ contains
         stop
       else ! angle-dependent SW are averaged following 3 point gaussian procedure (Goudriaan and van Laar 1996)
         absSWleaf_allsun(i,j,k_can)   = sum(weight_g *  absSWleaf_sun(k_can,1:nangle_gauss))
-        call leafeb_ags(absSWleaf_allsun(i,j,k_can), LWin_leafsun(i,j,k_can), leaf_eps, transpiretype, lwidth, llength, & ! in
+        absPARleaf_allsun(i,j,k_can)   = sum(weight_g *  absPARleaf_sun(k_can,1:nangle_gauss))
+        call leafeb_ags(absSWleaf_allsun(i,j,k_can), absPARleaf_allsun(i,j,k_can),LWin_leafsun(i,j,k_can), leaf_eps, transpiretype, lwidth, llength, & ! in
                         tmp0(i,j,k_can), humidairpa(k_can),qt0(i,j,k_can), windsp(k_can), presf(k_can),        & ! in
                         rhof(k_can), svm(i,j,k_can,indCO2), phitot(i,j),                                       & ! in
                         gcc_leafsun_old(i,j,k_can),ci_leafsun_old(i,j,k_can),rk3coef,                          & ! in
@@ -1088,7 +1092,7 @@ subroutine canopysource(     sunleafsh, shadeleafsh,             &
       return
  end subroutine canopysource
 
-subroutine leafeb_ags(i_s, i_r, eps, transpiretype, lwidth, llength,   & ! incoming
+subroutine leafeb_ags(i_s, i_p, i_r, eps, transpiretype, lwidth, llength,   & ! incoming
                           tairk, humairpa,qtair, ws, pres,             & ! in
                           rho, CO2air, phi_tot,gcc_old,ci_old,rk3coef, & ! in
                           tleaf, gccleaf,rb,ci,                        & ! in/out
@@ -1122,6 +1126,7 @@ subroutine leafeb_ags(i_s, i_r, eps, transpiretype, lwidth, llength,   & ! incom
        ! ---- incoming variables
 
        real, intent(in)    :: i_s,              &      ! absorbed incoming solar radiation [W m-2]
+                              i_p,              &      ! absorbed incoming PAR [W m-2]
                               i_r,              &      ! absorbed ifrared radiation [W m-2]
                               eps,              &      ! leaf IR emissivity
                               transpiretype,    &      ! what type of transpirer?
@@ -1177,7 +1182,7 @@ subroutine leafeb_ags(i_s, i_r, eps, transpiretype, lwidth, llength,   & ! incom
 
        real    :: Fleaf
        real    :: fstr,Am,Rdark,alphac,co2abs,CO2comp,Ds,D0,fmin
-       real    :: i_PAR   ! absorbed PAR [W m-2] (previously assumed to be  PAR = 0.5 SW, now based on Amazon obs PAR = 0.44 SW)
+       ! real    :: i_PAR   ! absorbed PAR [W m-2] (previously assumed to be  PAR = 0.5 SW, now based on Amazon obs PAR = 0.44 SW)
        ! --- others
 
        real :: humidairkgm3
@@ -1234,9 +1239,9 @@ subroutine leafeb_ags(i_s, i_r, eps, transpiretype, lwidth, llength,   & ! incom
        tdelt = tleaf_l - tairk            ! --- current delta_T = T_leaf - T_air [K]
        !assume SW=2.0*PAR
        !i_PAR = 0.5*max(0.1,abs(i_s))
-       i_PAR = 0.44*max(0.1,abs(i_s))
+       !i_PAR = 0.44*max(0.1,abs(i_s))
        call f_Ags(CO2air,qtair,rho,tairk,pres,tleaf_l,                & ! in
-                  phi_tot,i_PAR,                                      & ! in
+                  phi_tot,i_p,                                      & ! in
                   lrelaxgc_can,gccan_old_set,kgc_can,gcc_old,rk3coef, & ! in
                   lrelaxci_can,cican_old_set,kci_can,ci_old,          & ! in
                   gccleaf,Fleaf,ci,                                   & ! out
@@ -1257,7 +1262,7 @@ subroutine leafeb_ags(i_s, i_r, eps, transpiretype, lwidth, llength,   & ! incom
        tdelt = tleaf_r - tairk            ! --- current delta_T = T_leaf - T_air [K]
 
        call f_Ags(CO2air,qtair,rho,tairk,pres,tleaf_r,                & ! in
-                  phi_tot,i_PAR,                                      & ! in
+                  phi_tot,i_p,                                      & ! in
                   lrelaxgc_can,gccan_old_set,kgc_can,gcc_old,rk3coef, & ! in
                   lrelaxci_can,cican_old_set,kci_can,ci_old,          & ! in
                   gccleaf,Fleaf,ci,                                   & ! out
@@ -1307,7 +1312,7 @@ subroutine leafeb_ags(i_s, i_r, eps, transpiretype, lwidth, llength,   & ! incom
           tdelt = t_g - tairk
 
           call f_Ags(CO2air,qtair,rho,tairk,pres,t_g,                    & ! in
-                     phi_tot,i_PAR,                                      & ! in
+                     phi_tot,i_p,                                      & ! in
                      lrelaxgc_can,gccan_old_set,kgc_can,gcc_old,rk3coef, & ! in
                      lrelaxci_can,cican_old_set,kci_can,ci_old,          & ! in
                      gccleaf,Fleaf,ci,                                   & ! out
