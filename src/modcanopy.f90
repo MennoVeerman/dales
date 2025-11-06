@@ -153,7 +153,7 @@ contains
   SUBROUTINE initcanopy
     use modmpi,      only : myid, mpi_logical, mpi_integer, my_real, comm3d, mpierr
     use modglobal,   only : kmax, ifnamopt, fname_options, ifinput, cexpnr, zh, dzh, dzf,ih,i1,jh,j1,i2,j2,dzh
-    use modsurfdata, only : nangle_gauss,ldiscr,lsplitleaf,l3leaves,nband_can
+    use modsurfdata, only : nangle_gauss,ldiscr,lsplitleaf,l3leaves,nband_can, sigma_b, weight_b
     use modraddata , only : kmin_rad
     use modfields,   only : tmp0
     implicit none
@@ -162,7 +162,7 @@ contains
     real f_cor
     character(80) readstring
 
-    namelist/NAMCANOPY/ lcanopy, ncanopy, cd, lai_can, lpaddistr, npaddistr, &
+    namelist/NAMCANOPY/ lcanopy, ncanopy, cd, lai_can, lpaddistr, npaddistr, sigma_b, weight_b, &
                         wth_total, wqt_total, wsv_total, wth_can, wqt_can, wsv_can, &
                         wth_alph, wqt_alph, wsv_alph, &
                         lcanopyeb,lwidth,llength,transpiretype,leaf_eps,lclump,&
@@ -195,6 +195,8 @@ contains
     call MPI_BCAST(lai_can      ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(lpaddistr    ,   1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(npaddistr    ,   1, mpi_integer , 0, comm3d, mpierr)
+    call MPI_BCAST(sigma_b      ,   4, my_real     , 0, comm3d, mpierr)
+    call MPI_BCAST(weight_b     ,   4, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(wth_total    ,   1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(wqt_total    ,   1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(wsv_total    , 100, mpi_logical , 0, comm3d, mpierr)
