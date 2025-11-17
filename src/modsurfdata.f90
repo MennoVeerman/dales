@@ -200,8 +200,8 @@ SAVE
   integer,parameter         :: iband_nir_e = 4 !<last spectral band of NIR bands for computing albedo
   real, dimension(nangle_gauss) :: weight_g   = (/0.2778,0.4444,0.2778/) !<  Weights of the Gaussian bins (must add up to 1)
   real, dimension(nangle_gauss) :: angle_g    = (/0.1127,   0.5,0.8873/) !<  Sines of the leaf angles compared to the sun in the first Gaussian integration
-  real, dimension(nband_can)  :: sigma_b = (/0.157, 0.092, 0.622, 0.750/) !0.45, 0.45, 0.45, 0.45/) !<  Scattering coefficients of leaves-controls the effective albedo
-  real, dimension(nband_can)  :: weight_b = (/0.128, 0.450, 0.055, 0.367/) !0.06,0.44, 0.25, 0.25/) !<  Fraction of top-of-canopy irradiance per spectral band
+  real, dimension(nband_can)  :: sigma_b = (/0.157, 0.092, 0.622, 0.750/) ! UV PAR FAR-RED NIR/) !<  Scattering coefficients of leaves-controls the effective albedo
+  real, dimension(nband_can)  :: weight_b = (/0.128, 0.450, 0.055, 0.367/) !UV PAR FAR-RED NIR/) !<  Fraction of top-of-canopy irradiance per spectral band
   !real                      :: kdfbl      =                      0.8 !<  Diffuse radiation extinction coefficient for black leaves
   real, allocatable         :: gshad_old    (:,:,:)
   real, allocatable         :: gleafsun_old (:,:,:,:)

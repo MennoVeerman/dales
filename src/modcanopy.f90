@@ -48,8 +48,8 @@ module modcanopy
   real, allocatable :: padtemp(:)      !< temporary plant area density used for calculations
   real, allocatable :: padf(:)         !< plant area density field full level
   real, allocatable :: padh(:)         !< plant area density field half level
-  real, allocatable :: pai(:)          !< plant area index of the column starting in this grid cell up to the canopy top
-  real, allocatable :: paih(:)         !< plant area index of the column starting in this grid cell up to the canopy top
+  real, allocatable :: paif(:)         !< plant area index at full levels up to canopy top
+  real, allocatable :: paih(:)         !< plant area index at half levels up to the canopy top
 
   real              :: f_lai_h         !< average plant area density [m2/m2 / m]
 
@@ -229,8 +229,8 @@ contains
     allocate(padtemp   (npaddistr))
     allocate(padf      (ncanopy  ))
     allocate(padh      (ncanopy+1))
-    allocate(pai       (ncanopy+1))
-    allocate(paih      (ncanopy+2))
+    allocate(paif      (ncanopy))
+    allocate(paih      (ncanopy+1))
 
     ! Determination of padfactor: relative weighing of plant area distribution inside canopy; equidistant from surface to canopy top
     if (lpaddistr) then  !< Profile prescribed by user in the file paddistr.inp.<expnr>
@@ -260,19 +260,30 @@ contains
 
       call MPI_BCAST(padfactor, npaddistr, my_real , 0, comm3d, mpierr)
 
-    else                 !< Standard profile fron Ned Patton
+    else
+      padfactor = (/ 0.42504261, &
+                     1.37531645, &
+                     0.61867845, &
+                     0.86968786, &
+                     1.19815162, &
+                     1.41091197, &
+                     1.44963914, &
+                     1.39130934, &
+                     1.17902709, &
+                     0.29475677, &
+                     0.00000000 /)
 
-      padfactor = (/ 0.4259088000000000, &
-                     1.3781192000000000, &
-                     0.6199392500000000, &
-                     0.8714601900000000, &
-                     1.2005933200000000, &
-                     1.4137872600000000, &
-                     1.4525933500000000, &
-                     1.3941446800000000, &
-                     1.1814298200000000, &
-                     0.2953574500000000, &
-                     0.0000000000000000  /)
+      !padfactor = (/ 0.4259088000000000, &
+      !               1.3781192000000000, &
+      !               0.6199392500000000, &
+      !               0.8714601900000000, &
+      !               1.2005933200000000, &
+      !               1.4137872600000000, &
+      !               1.4525933500000000, &
+      !               1.3941446800000000, &
+      !               1.1814298200000000, &
+      !               0.2953574500000000, &
+      !               0.0000000000000000  /)
 
 
       !padfactor = (/ 0.4666666666666667, &
@@ -299,28 +310,34 @@ contains
       call splint(zpad,ppad,padtemp,npaddistr,zh(k),padh(k))
     end do
 
-    ! scale padh to correct interpolation errors
-    f_cor = f_lai_h*ncanopy / sum(padh)
-
-    do k=1,(1+ncanopy)
-        padh(k) = padh(k) * f_cor
-    end do
-
     ! Interpolate plant area (index) density to full levels
     do k=1,ncanopy
       kp      = k+1
       padf(k) = ( dzh(kp) * padh(k) + dzh(k) * padh(kp) ) / ( dzh(k) + dzh(kp) )
     end do
 
-    ! Vertically integrate the plant area density to arrive at plant area index
-    pai = 0.0
-    do k=ncanopy,1,-1
-      pai(k) = pai(k+1) + dzf(k) * padf(k)
+    ! Vertical integral of padf*dz to correct for interpolation errors
+    f_cor = lai_can / sum(padf(:) * dzf(1:ncanopy))
+
+    do k=1,ncanopy
+      padf(k) = padf(k) * f_cor
     end do
+
+    do k=1,ncanopy+1
+      padh(k) = padh(k) * f_cor
+    end do
+
+    ! Vertically integrate the plant area density to arrive at plant area index at half levels
     paih = 0.0
-    do k=ncanopy+1,1,-1
-        paih(k) = paih(k+1) + dzh(k) * padh(k)
+    do k=ncanopy,1,-1
+      paih(k) = paih(k+1) + dzf(k) * padf(k)
     end do
+
+    ! interpolate to plant area index at full levels
+    do k=1,ncanopy
+        paif(k) = (paih(k) + paih(k+1)) / 2.0
+    end do
+
     if (.not. (lcanopyeb)) return
 
     ldiscr = .true. ! use difference between canopy levels instead of analytic derivative in canopyrad
@@ -484,20 +501,20 @@ contains
     endif
 
     if (wth_total) then
-      call canopyc(thlp,wth_can,thlflux,wth_alph,pai)
+      call canopyc(thlp,wth_can,thlflux,wth_alph,paih)
     else
-      call canopyc(thlp,wth_can, zeroar,wth_alph,pai)
+      call canopyc(thlp,wth_can, zeroar,wth_alph,paih)
     endif
     if (wqt_total) then
-      call canopyc( qtp,wqt_can,qtflux,wqt_alph,pai)
+      call canopyc( qtp,wqt_can,qtflux,wqt_alph,paih)
     else
-      call canopyc( qtp,wqt_can,zeroar,wqt_alph,pai)
+      call canopyc( qtp,wqt_can,zeroar,wqt_alph,paih)
     endif
     do n=1,nsv
       if (wsv_total(n)) then
-        call canopyc(svp(:,:,:,n),wsv_can(n),svflux(:,:,n),wsv_alph(n),pai)
+        call canopyc(svp(:,:,:,n),wsv_can(n),svflux(:,:,n),wsv_alph(n),paih)
       else
-        call canopyc(svp(:,:,:,n),wsv_can(n),       zeroar,wsv_alph(n),pai)
+        call canopyc(svp(:,:,:,n),wsv_can(n),       zeroar,wsv_alph(n),paih)
       endif
     end do
 
@@ -515,7 +532,7 @@ contains
     deallocate(padtemp  )
     deallocate(padf     )
     deallocate(padh     )
-    deallocate(pai      )
+    deallocate(paif     )
     deallocate(paih     )
     if (.not. (lcanopyeb)) return
 
@@ -659,7 +676,7 @@ contains
         if (sinbeta>0.035) then ! daytime, same threshold as radpar
           kdrbl    = lclump * 0.5 / sinbeta
           do k_can=1,ncanopy
-            cfSL(k_can)   = exp(-kdrbl * pai(k_can)) ! needed for absSWlayer
+            cfSL(k_can)   = exp(-kdrbl * paif(k_can)) ! needed for absSWlayer
 
           enddo
         else
@@ -760,7 +777,7 @@ contains
                         t_leafsun(i,j,k_can), gcc_leafsun(i,j,k_can), rb_leafsun(i,j,k_can),ci_leafsun(i,j,k_can),     & ! out
                         sh_leafsun(i,j,k_can), le_leafsun(i,j,k_can), LWout_leafsun(i,j,k_can),An_leafsun(i,j,k_can))            ! out
         LWnet_leafsun(k_can) = LWin_leafsun(i,j,k_can) - LWout_leafsun(i,j,k_can)
-        absSWlayer(i,j,k_can) = dzh(k_can) * padh(k_can) * (cfSL(k_can) * absSWleaf_allsun(i,j,k_can) + (1-cfSL(k_can)) * absSWleaf_shad(i,j,k_can))
+        absSWlayer(i,j,k_can) = dzf(k_can) * padf(k_can) * (cfSL(k_can) * absSWleaf_allsun(i,j,k_can) + (1-cfSL(k_can)) * absSWleaf_shad(i,j,k_can))
 
         if (lrelaxgc_can) then
           if (gccan_old_set .and. rk3step ==3) then
@@ -1004,7 +1021,7 @@ contains
     return
   end subroutine canopye
 
-  subroutine canopyc (putout, flux_top, flux_surf, alpha, pai)
+  subroutine canopyc (putout, flux_top, flux_surf, alpha, paih)
     use modglobal, only  : i1, i2, ih, j1, j2, jh, k1, dzf, imax, jmax
     use modfields, only  : rhobh, rhobf
     implicit none
@@ -1013,7 +1030,7 @@ contains
     real, intent(in   ) :: flux_top
     real, intent(in   ) :: flux_surf(i2,j2)
     real, intent(in   ) :: alpha
-    real, intent(in   ) :: pai(ncanopy+1)
+    real, intent(in   ) :: paih(ncanopy+1)
     real                :: flux_net (i2,j2)
     integer             :: k
     real                :: integratedcontribution(imax,jmax,ncanopy+1), tendency(imax,jmax,ncanopy)
@@ -1022,7 +1039,7 @@ contains
     integratedcontribution(:,:,1)   = 0.0
 
     do k=2,(ncanopy+1)
-      integratedcontribution(:,:,k) = flux_net(2:i1,2:j1) * exp(- alpha * pai(k))
+      integratedcontribution(:,:,k) = flux_net(2:i1,2:j1) * exp(- alpha * paih(k))
     end do
     do k=1,ncanopy
       tendency(:,:,k) = ( integratedcontribution(:,:,(k+1)) - integratedcontribution(:,:,k) ) / ( rhobf(k) * dzf(k) )

@@ -269,7 +269,7 @@ contains
 
       if (myid==0) then
         call ncinfo(ncname( 1,:),'padf','Plant area density at full level','m^2/m^3','tt')
-        call ncinfo(ncname( 2,:),'pai','Plant area index at full level','m^2/m^2','tt')
+        call ncinfo(ncname( 2,:),'paif','Plant area index at full level','m^2/m^2','tt')
         call ncinfo(ncname( 3,:),'paih','Plant area index at half level','m^2/m^2','tt')
         call ncinfo(ncname( 4,:),'cfSL','Fraction of sunlit leaves in canopy','-','tt')
         call ncinfo(ncname( 5,:),'shcan','Canopy sensible heat source','W/m^3','tt')
@@ -446,7 +446,7 @@ contains
       use modglobal, only : cexpnr,ifoutput,zf,rtimee,zh
       use modstat_nc, only: lnetcdf, writestat_nc
       use modgenstat, only: ncid_prof=>ncid,nrec_prof=>nrec
-      use modcanopy, only : ncanopy,pai,padf,paih
+      use modcanopy, only : ncanopy,paif,padf,paih
       implicit none
       real,dimension(ncanopy,nvar) :: vars
       real,dimension(ncanopy+1,nvar2) :: vars2
@@ -513,7 +513,7 @@ contains
           ,' (W/M^2)  (W/M^2)  (W/M^2)  (W/M^2)   (W/M^2)   (W/M^2)   (W/M^2)'
       do k=1,ncanopy
         write(ifoutput,'(I4,2F10.2,10E13.4,2F9.3,2E13.4,2F9.3,8E13.4,7F9.3)') &
-            k,zf(k),zh(k),padf(k),pai(k),paih(k),&
+            k,zf(k),zh(k),padf(k),paif(k),paih(k),&
             cfSLmn(k),            &
             shcanmn(k),           &
             lecanmn(k),           &
@@ -547,7 +547,7 @@ contains
 
       if (lnetcdf) then
         vars(:, 1) = padf
-        vars(:, 2) = pai(:ncanopy)
+        vars(:, 2) = paif(:ncanopy)
         vars(:, 3) = paih(:ncanopy)
         vars(:, 4) = cfSLmn
         vars(:, 5) = shcanmn
