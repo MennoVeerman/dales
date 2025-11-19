@@ -48,8 +48,10 @@ module modcanopy
   real, allocatable :: padtemp(:)      !< temporary plant area density used for calculations
   real, allocatable :: padf(:)         !< plant area density field full level
   real, allocatable :: padh(:)         !< plant area density field half level
+  real, allocatable :: paif_local(:)         !< local plant area index at full levels
   real, allocatable :: paif(:)         !< plant area index at full levels up to canopy top
   real, allocatable :: paih(:)         !< plant area index at half levels up to the canopy top
+  real, allocatable :: tau_dif_can(:)  !< diffuse optical depth of each canopy layer
 
   real              :: f_lai_h         !< average plant area density [m2/m2 / m]
 
@@ -223,14 +225,16 @@ contains
 
     if (.not. lpaddistr) npaddistr = 11
 
-    allocate(padfactor (npaddistr))
-    allocate(ppad      (npaddistr))
-    allocate(zpad      (npaddistr))
-    allocate(padtemp   (npaddistr))
-    allocate(padf      (ncanopy  ))
-    allocate(padh      (ncanopy+1))
-    allocate(paif      (ncanopy))
-    allocate(paih      (ncanopy+1))
+    allocate(padfactor   (npaddistr))
+    allocate(ppad        (npaddistr))
+    allocate(zpad        (npaddistr))
+    allocate(padtemp     (npaddistr))
+    allocate(padf        (ncanopy  ))
+    allocate(padh        (ncanopy+1))
+    allocate(paif_local        (ncanopy))
+    allocate(paif        (ncanopy))
+    allocate(paih        (ncanopy+1))
+    allocate(tau_dif_can (ncanopy))
 
     ! Determination of padfactor: relative weighing of plant area distribution inside canopy; equidistant from surface to canopy top
     if (lpaddistr) then  !< Profile prescribed by user in the file paddistr.inp.<expnr>
@@ -331,6 +335,8 @@ contains
     paih = 0.0
     do k=ncanopy,1,-1
       paih(k) = paih(k+1) + dzf(k) * padf(k)
+      paif_local(k) = padf(k) * dzf(k)
+      tau_dif_can(k) = tau_dif_pa(paif_local(k), lclump)
     end do
 
     ! interpolate to plant area index at full levels
@@ -340,7 +346,7 @@ contains
 
     if (.not. (lcanopyeb)) return
 
-    ldiscr = .true. ! use difference between canopy levels instead of analytic derivative in canopyrad
+    ldiscr = .true. ! use difference between canopy levels instead of analytic derivative in canopyrad_sw
     allocate(absleaf_shad_b(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1,nband_can))
     allocate(absSWleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
     allocate(absPARleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
@@ -526,14 +532,16 @@ contains
 
     if (.not. (lcanopy)) return
 
-    deallocate(padfactor)
-    deallocate(ppad     )
-    deallocate(zpad     )
-    deallocate(padtemp  )
-    deallocate(padf     )
-    deallocate(padh     )
-    deallocate(paif     )
-    deallocate(paih     )
+    deallocate(padfactor  )
+    deallocate(ppad       )
+    deallocate(zpad       )
+    deallocate(padtemp    )
+    deallocate(padf       )
+    deallocate(padh       )
+    deallocate(paif_local       )
+    deallocate(paif       )
+    deallocate(paih       )
+    deallocate(tau_dif_can)
     if (.not. (lcanopyeb)) return
 
     deallocate(absleaf_shad_b)
@@ -626,7 +634,7 @@ contains
    !                                                      Xabier Pedruzo, 2020
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt,Rd,pref0
-    use modsurfdata,only : phitot,weight_g,indCO2,albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
+    use modsurfdata,only : phitot,weight_g,indCO2,albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad_sw,canopyrad_lw,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
     use modfields, only  : thl0,rhof,qt0,exnf,u0,v0,presf,svm,tmp0
     use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad,sfc_emis
     implicit none
@@ -637,7 +645,7 @@ contains
     integer :: k_can,k
     real    :: LWin,paf
 !    real    ::PARdirTOC,PARdifTOC
-    real    :: SWdirTOC,SWdifTOC
+    real    :: SWdirTOC,SWdifTOC,lwdTOC
     real    :: lwu_air,lwd_air,kdrbl,sinbeta, exner
     logical :: update_canrad = .false.
    !                                                                  !
@@ -651,10 +659,10 @@ contains
 
 
     if (update_canrad) then
-        !assume scattering/reflections properties of leaves is the same for PAR and SW, becauswe canopyrad uses coefficients for PAR
+        !assume scattering/reflections properties of leaves is the same for PAR and SW, becauswe canopyrad_sw uses coefficients for PAR
         SWdirTOC = max(0.1,abs(swdir(i,j,ncanopy+1)))
         SWdifTOC = max(0.1,abs(swdif(i,j,ncanopy+1)))
-        call canopyrad(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,albedo_surf(i,j),lclump,canrad_meth,& ! in
+        call canopyrad_sw(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,albedo_surf(i,j),lclump,canrad_meth,& ! in
                        temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
                        albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
                        swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation
@@ -671,7 +679,7 @@ contains
         PARu_can(i,j,1:ncanopy+1) = swu_can(1:ncanopy+1, iband_par)
 
 
-        ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad
+        ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad_sw
         sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon),1.e-10)
         if (sinbeta>0.035) then ! daytime, same threshold as radpar
           kdrbl    = lclump * 0.5 / sinbeta
@@ -691,49 +699,19 @@ contains
       humidairpa(k_can) =  watervappres(qt0(i,j,k_can),presf(k_can)) !
     enddo
 
-    if(def_LWcan) then ! we need to build a LW profile according to air characteristics
-     ! downwelling LW irradiance at top of canopy
-     if (iradiation==irad_lsm .or.((iradiation==irad_par .or. iradiation==irad_rrtmg ).and. rad_longw .eqv. .false.)) then ! there is no LW calculated by radiation
-       !! situation without LW scheme should be revised
-       lwd_can(ncanopy+1) = unexposedleafLWin(tmp0(i,j,ncanopy), leaf_eps)
-     else ! get LW calculated by rad scheme, here positive for any rad scheme
-       lwd_can(ncanopy+1) = abs(lwd(i,j,ncanopy+1))
-     endif
+    exner = (ps/pref0) ** (rd/cp)
 
-     ! downwelling loop from top to bottom of canopy
-     do k_can = ncanopy, 1, -1
-       ! area-weighted average between sunlit and shaded leaves. Divide total leaf emission by 2, because half is going upward and half is going downward.
-       lw_leaflayer(k_can) = (leafLWout(t_leafsun(i,j,k_can), leaf_eps)*cfSL(k_can) + leafLWout(t_leafshad(i,j,k_can), leaf_eps)*(1.-cfSL(k_can))) / 2.
-       if (PA(k_can) < 1.0) then ! area-weighted average between background lw and leaf. Assume emissivity+transmissivity=1
-         lwd_can(k_can) = lwd_can(k_can+1) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwd_can(k_can+1))
-       else
-       ! since we assume that both sides of the leaf are at the same temperature
-         lwd_can(k_can)   = lw_leaflayer(k_can)
-       endif
-     end do
-
-     ! surface upwelling LW irradiance
-     ! use tskin*exner (tskin=thl, so convert to absolute temperature) for emission and account for reflection (1-emis):
-     exner = (ps/pref0) ** (rd/cp)
-     lwu_can(1) =  sfc_emis * boltz * (tskinm_surf(i,j) * exner) ** 4. + (1-sfc_emis) * lwd_can(1)
-
-     ! upwelling loop from bottom to top of canopy
-     do k_can = 1, ncanopy
-       if (PA(k_can) < 1.0) then
-           lwu_can(k_can+1) = lwu_can(k_can) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwu_can(k_can))
-       else
-           lwu_can(k_can+1) = lw_leaflayer(k_can)
-       endif
-
-       ! Close radiation balance
-       ! Absorption per LEAF = (Delta LW_net - emission)/PA, where emission = 2xleaflayers (two hemispheres)
-       LWin_leafshad(i,j,k_can) = ( (lwd_can(k_can+1) - lwd_can(k_can) + lwu_can(k_can) - lwu_can(k_can+1)) + lw_leaflayer(k_can) * PA(k_can) * 2) / PA(k_can)
-       LWin_leafsun(i,j,k_can) = LWin_leafshad(i,j,k_can)
-     end do
-
+    ! downwelling LW irradiance at top of canopy
+    if (iradiation==irad_lsm .or.((iradiation==irad_par .or. iradiation==irad_rrtmg ).and. rad_longw .eqv. .false.)) then ! there is no LW calculated by radiation
+        !! situation without LW scheme should be revised
+        lwdTOC = unexposedleafLWin(tmp0(i,j,ncanopy), leaf_eps)
+    else ! get LW calculated by rad scheme, here positive for any rad scheme
+        lwdTOC = abs(lwd(i,j,ncanopy+1))
     endif
 
-
+    call canopyrad_lw(ncanopy, paif_local, lwdTOC, t_leafshad(i,j,:), t_leafsun(i,j,:), cfSL, &
+                     tau_dif_can, tskinm_surf(i,j) * exner, leaf_eps, lclump, lwd_can, lwu_can, &
+                     LWin_leafshad(i,j,:),LWin_leafsun(i,j,:), .false.)
 
     !                                                                                                !
     !######### STEP 2 - Leaf energy balance per level for sunlit and shaded leaves ####################
@@ -814,51 +792,13 @@ contains
     S_co2(i,j,1:ncanopy)     = Fco2_can(i,j,1:ncanopy)*(MW_Air/MW_CO2) * (1.0/rhof(1:ncanopy))* 1000 !In  ppb/s
 
    !                                                                                                !
-   !######### STEP 4 -Radiation inside the canopy, part2: calculate LW profiles ####################
+   !######### STEP 4 -Radiation inside the canopy, part2: calculate LW profiles again with updates leaf temperature ####################
    !
 
-    ! assume for LW that leaves/plants form one horizontal layer (minimum overlap) in each grid and LW only moves upwards and downwards
 
-    ! downwelling LW irradiance at top of canopy
-    if (iradiation==irad_lsm .or.((iradiation==irad_par .or. iradiation==irad_rrtmg ).and. rad_longw .eqv. .false.)) then ! there is no LW calculated by radiation
-      !! situation without LW scheme should be revised
-      lwd_can(ncanopy+1) = unexposedleafLWin(tmp0(i,j,ncanopy), leaf_eps)
-    else ! get LW calculated by rad scheme, here positive for any rad scheme
-      lwd_can(ncanopy+1) = abs(lwd(i,j,ncanopy+1))
-    endif
-
-    ! half level k_can+1  -------^-- lwu
-    !                            |
-    ! full level k_can    ********** lw_leaflayer,LWout_leafsun,cfSL
-    !                            |
-    ! half level k_can    -------v-- lwd
-    !
-
-    ! downwelling loop from top to bottom of canopy
-    do k_can = ncanopy, 1, -1
-      ! area-weighted average between sunlit and shaded leaves. Divide total leaf emission by 2, because half is going upward and half is going downward.
-      lw_leaflayer(k_can) = (LWout_leafsun(i,j,k_can)*cfSL(k_can) + LWout_leafshad(i,j,k_can)*(1.-cfSL(k_can))) / 2.0 ! at full level
-      if (PA(k_can) < 1.0) then ! area-weighted average between background lw and leaf
-        lwd_can(k_can) = lwd_can(k_can+1) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwd_can(k_can+1))
-      else
-      ! since we assume that both sides of the leaf are at the same temperature
-        lwd_can(k_can)   = lw_leaflayer(k_can)
-      endif
-    end do
-
-    ! surface upwelling LW irradiance
-    ! use tskin*exner (tskin=thl, so convert to absolute temperature) for emission and account for reflection (1-emis):
-    exner = (ps/pref0) ** (rd/cp)
-    lwu_can(1) =  sfc_emis * boltz * (tskinm_surf(i,j) * exner) ** 4. + (1-sfc_emis) * lwd_can(1)
-
-    ! upwelling loop from bottom to top of canopy
-    do k_can = 1, ncanopy
-      if (PA(k_can) < 1.0) then
-          lwu_can(k_can+1) = lwu_can(k_can) * (1.0-PA(k_can)) + PA(k_can) * (lw_leaflayer(k_can) + (1.0 - leaf_eps) * lwu_can(k_can))
-      else
-          lwu_can(k_can+1) = lw_leaflayer(k_can)
-      endif
-    end do
+    call canopyrad_lw(ncanopy, paif_local, lwdTOC, t_leafshad(i,j,:), t_leafsun(i,j,:), cfSL, &
+                      tau_dif_can, tskinm_surf(i,j) * exner, leaf_eps, lclump, lwd_can, lwu_can, &
+                      LWin_leafshad(i,j,:),LWin_leafsun(i,j,:), .true.) !.true.: only return radiative fluxes, do not recompute absorption rates
 
    !                                                                                                !
    !######### STEP 5 - Pass on variables needed to radiation ####################
@@ -1743,4 +1683,12 @@ real function e_sat(T)
 return
 end function e_sat
 
+real function tau_dif_pa(PA,cf)
+    implicit none
+    real, intent(in) :: PA, cf !plant area, clumping factor
+    real, parameter :: w1 = 0.25, w2 = 0.50, w3 = 0.25
+    real, parameter :: K1 = 0.51763809, K2 = 0.70710678, K3 = 1.93185165
+    tau_dif_pa = exp(-K1*cf*PA)*w1 + exp(-K2*cf*PA)*w2 + exp(-K3*cf*PA)*w3
+return
+end function tau_dif_pa
 end module modcanopy

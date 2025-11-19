@@ -1871,7 +1871,7 @@ contains
           if (lsplitleaf) then
             swdir_TOV = max(0.1,abs(swdir(i,j,1)))
             swdif_TOV = max(0.1,abs(swdif(i,j,1)))
-            call canopyrad(nz_gauss,LAI_surf(i,j),LAI_surf(i,j)*LAI_g,swdir_TOV,swdif_TOV,albedo_surf(i,j),1.0,surfrad_meth,& ! in!
+            call canopyrad_sw(nz_gauss,LAI_surf(i,j),LAI_surf(i,j)*LAI_g,swdir_TOV,swdif_TOV,albedo_surf(i,j),1.0,surfrad_meth,& ! in!
                  swleaf_shad,swleaf_sun,fSL,&
                  albdir_lsplit(i,j,:),albdif_lsplit(i,j,:),albswd_lsplit(i,j,:),&
                  swdir_lsplit(i,j,:nz_gauss,:),swdif_lsplit(i,j,:nz_gauss,:),swu_lsplit(i,j,:nz_gauss,:),absPAR_ground(:))! could be coupled to radiation

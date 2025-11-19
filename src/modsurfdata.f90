@@ -343,25 +343,44 @@ SAVE
 
 contains
 
+!function rho_c_dif(sigma)
+!    real :: rho_c_dif
+!    real, intent(in) :: sigma
+!
+!    rho_c_dif = 0.0048*exp(19.3141*sigma-56.0266*sigma**2+97.1420*sigma**3-84.7650*sigma**4+29.4607*sigma**5)
+!    return
+!end function rho_c_dif
+!
+!function rho_c_dir(sigma, mu0)
+!    real :: rho_c_dir
+!    real, intent(in) :: sigma, mu0
+!
+!    rho_c_dir =  0.4203*sigma**1.1370 * exp(-(2.4990*(1-sigma)**0.3316) * mu0) + 0.0164*exp(3.2527*sigma)
+!    return
+!end function rho_c_dir
+
 function rho_c_dif(sigma)
-    real :: rho_c_dif
+    real :: rho_c_dir
     real, intent(in) :: sigma
 
-    rho_c_dif = 0.0048*exp(19.3141*sigma-56.0266*sigma**2+97.1420*sigma**3-84.7650*sigma**4+29.4607*sigma**5)
+    rho_c_dif = 4.636239e-03*exp(19.707778*sigma-57.752878*sigma**2+100.713885*sigma**3-88.256337*sigma**4+30.761673*sigma**5)
     return
-end function rho_c_dif
+end function
 
-function rho_c_dir(sigma, mu0)
+function rho_c_dir(mu, rho_c_dif)
     real :: rho_c_dir
-    real, intent(in) :: sigma, mu0
-
-    rho_c_dir =  0.4203*sigma**1.1370 * exp(-(2.4990*(1-sigma)**0.3316) * mu0) + 0.0164*exp(3.2527*sigma)
+    real :: a,b,c
+    real, intent(in) :: mu, rho_c_dif
+    a = 1.677900*exp(-1.804072*rho_c_dif**0.935482)+0.347942
+    b = 4.206250*exp(-0.534006*rho_c_dif**0.955533)-2.443320
+    c = -0.366804*exp(-0.676143*rho_c_dif**0.983803)+1.107502
+    rho_c_dir = rho_c_dif * (a*exp(-b*mu**c) + 0.4)
     return
-end function rho_c_dir
+end function
 
-subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_meth, & ! in
-                      Hshad,Hsun,fracSL,                                 & ! out needed for vegetation
-                      effalb_dir,effalb_dif,effalb_phi,phidircan,phidifcan,phiucan,isoil) ! out needed for radiation if lcanopyeb
+subroutine canopyrad_sw(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_meth, & ! in
+                        Hshad,Hsun,fracSL,                                 & ! out needed for vegetation
+                        effalb_dir,effalb_dif,effalb_phi,phidircan,phidifcan,phiucan,isoil) ! out needed for radiation if lcanopyeb
   use modraddata , only : zenith
   use modglobal  , only : xtime,rtimee,xday,xlat,xlon
   implicit none
@@ -426,7 +445,7 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
       !ref      = (1.0 - sqrt(1.0-sigma)) / (1.0 + sqrt(1.0-sigma)) ! Reflection coefficient
       !ref_dir  = 2 * ref / (1.0 + 1.6 * sinbeta)
       ref      = rho_c_dif(sigma) !(1.0 - sqrt(1.0-sigma)) / (1.0 + sqrt(1.0-sigma)) ! Reflection coefficient
-      ref_dir  = rho_c_dir(sigma, sinbeta) !2 * ref / (1.0 + 1.6 * sinbeta)
+      ref_dir  = rho_c_dir(sinbeta, ref) !2 * ref / (1.0 + 1.6 * sinbeta)
       PHIdir_TOC_b = PHIdir_toc * weight
       PHIdif_TOC_b = PHIdif_toc * weight
 
@@ -592,7 +611,78 @@ subroutine canopyrad(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_m
     isoil      = 0.0
   endif ! sinbeta
 return
-end subroutine ! canopyrad
+end subroutine ! canopyrad_sw
+
+subroutine canopyrad_lw(layers,LAI_can,lwd_TOC,T_shad,T_sun, cfSL, tau_dif_can, & ! in
+                        tskin_sfc, leaf_eps, lclump,                          & ! in
+                        lwd_can, lwu_can, LW_in_leaf_shad, LW_in_leaf_sun, only_fluxes)    ! out needed for vegetation
+  use modraddata, only : sfc_emis
+  use modglobal, only : boltz
+  implicit none
+
+  integer,intent(in) :: layers
+  real, intent(in),dimension(layers) :: LAI_can ! array with LAI above the evaluated level. Array goes from canopy bottom to top.
+  real, intent(in),dimension(layers) :: T_shad, T_sun ! Shaded and sunlit leaf temperatures
+  real, intent(in),dimension(layers) :: cfSL    ! fraction of sunlit leaves per layer
+  real, intent(in),dimension(layers) :: tau_dif_can ! layer-wise diffuse optical depth
+  real, intent(in)   :: lwd_TOC                  ! Downwelling longwave irradiance at vegetation top
+  real, intent(in)   :: tskin_sfc, leaf_eps, lclump
+  logical, intent(in)   :: only_fluxes
+
+  real, intent(out),dimension(layers)    :: LW_in_leaf_shad, LW_in_leaf_sun  ! LW radiation going into leaves from both side [W/m2leaf]
+  real, intent(out),dimension(layers+1)    :: lwd_can, lwu_can  ! LW fluxes
+
+  real, dimension(layers) :: sb_layer_mean ! layer mean emission; weighted average (using cfSL) of the stefan boltzmann law evaluated for sunlit and shaded leaves
+  real :: H,lay_emis
+  integer :: k_can
+
+
+  ! half level k_can+1  -------^-- lwu
+  !                            |
+  ! full level k_can    ********** lw_leaflayer,LWout_leafsun,cfSL
+  !                            |
+  ! half level k_can    -------v-- lwd
+  !
+
+  ! set ToC boundary condition
+  lwd_can(layers+1) = lwd_TOC
+
+  ! downwelling loop (following Bonan, 2019. Assuming only forward scattering/transmittance, hence rho_l=0)
+  do k_can = layers, 1, -1
+    ! layer mean emission
+    sb_layer_mean(k_can) = leaf_eps * boltz * ( (T_sun(k_can)**4) * cfSL(k_can) + (t_shad(k_can)**4) * (1.-cfSL(k_can)) )
+    ! eq 14.122
+    lwd_can(k_can) = lwd_can(k_can+1) * (tau_dif_can(k_can) + (1-tau_dif_can(k_can)) * (1-leaf_eps)) + sb_layer_mean(k_can) * (1-tau_dif_can(k_can))
+  end do
+
+  ! Surface upwelling fluxes
+  lwu_can(1) = sfc_emis * boltz * tskin_sfc**4 + (1-sfc_emis) * lwd_can(1)
+
+  ! upwelling loop
+  do k_can = 1, layers
+    ! eq 14.123
+    lwu_can(k_can+1) = lwu_can(k_can) * (tau_dif_can(k_can) + (1-tau_dif_can(k_can)) * (1-leaf_eps)) + sb_layer_mean(k_can) * (1-tau_dif_can(k_can))
+  end do
+
+  if (.not. only_fluxes) then
+    ! compute LW radiation going into leaves
+    do k_can = 1, layers
+      ! net lw fluxes into layer
+      H = (leaf_eps * (lwd_can(k_can+1) + lwu_can(k_can)) - 2 * sb_layer_mean(k_can) ) * (1-tau_dif_can(k_can))
+
+      ! total LW emitted by leaves in layer
+      lay_emis = 2 * sb_layer_mean(k_can) * LAI_can(k_can)
+
+      ! net lw fluxes into leaves: net flux + lay_emis
+      ! Currently, no split between sunlit and shaded leaves
+      LW_in_leaf_shad(k_can) = (H + lay_emis)/LAI_can(k_can)
+      LW_in_leaf_sun(k_can) = LW_in_leaf_shad(k_can)
+    end do
+  end if
+
+return
+end subroutine ! canopyrad_sw
+
 
 subroutine f_Ags(CO2air,qtair,dens,tairk,pair,t_skin,          & ! in
                  phi_tot,Hleaf,                                & ! in
