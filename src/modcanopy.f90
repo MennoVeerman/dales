@@ -634,7 +634,7 @@ contains
    !                                                      Xabier Pedruzo, 2020
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt,Rd,pref0
-    use modsurfdata,only : phitot,weight_g,indCO2,albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad_sw,canopyrad_lw,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
+    use modsurfdata,only : phitot,weight_g,indCO2,vis_albedo_surf,nir_albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad_sw,canopyrad_lw,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
     use modfields, only  : thl0,rhof,qt0,exnf,u0,v0,presf,svm,tmp0
     use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad,sfc_emis
     implicit none
@@ -648,6 +648,8 @@ contains
     real    :: SWdirTOC,SWdifTOC,lwdTOC
     real    :: lwu_air,lwd_air,kdrbl,sinbeta, exner
     logical :: update_canrad = .false.
+
+    real, dimension(nband_can) :: soil_albedo
    !                                                                  !
    !######### STEP 1 - Radiation inside the canopy, part1  ####################
    !                                                                  !
@@ -659,10 +661,13 @@ contains
 
 
     if (update_canrad) then
+        soil_albedo(1:2) = vis_albedo_surf(i,j)
+        soil_albedo(3:4) = nir_albedo_surf(i,j)
+
         !assume scattering/reflections properties of leaves is the same for PAR and SW, becauswe canopyrad_sw uses coefficients for PAR
         SWdirTOC = max(0.1,abs(swdir(i,j,ncanopy+1)))
         SWdifTOC = max(0.1,abs(swdif(i,j,ncanopy+1)))
-        call canopyrad_sw(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,albedo_surf(i,j),lclump,canrad_meth,& ! in
+        call canopyrad_sw(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,soil_albedo,lclump,canrad_meth,& ! in
                        temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
                        albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
                        swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation

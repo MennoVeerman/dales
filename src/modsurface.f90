@@ -84,7 +84,7 @@ contains
     namelist/NAMSURFACE/ & !< Soil related variables
       isurf,tsoilav, tsoildeepav, phiwav, rootfav, &
       ! Land surface related variables
-      lmostlocal, lsmoothflux, lneutral, z0mav, z0hav, rsisurf2, Cskinav, lambdaskinav, albedoav_surf, Qnetav, cvegav, Wlav, &
+      lmostlocal, lsmoothflux, lneutral, z0mav, z0hav, rsisurf2, Cskinav, lambdaskinav, albedoav_surf, vis_albedoav_surf, nir_albedoav_surf, Qnetav, cvegav, Wlav, &
       ! Jarvis-Steward related variables
       rsminav, rssoilminav, LAI_surfav, gDav, &
       ! Prescribed values for isurf 2, 3, 4
@@ -134,6 +134,8 @@ contains
     call MPI_BCAST(Cskinav      , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(lambdaskinav , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(albedoav_surf, 1, MY_REAL, 0, comm3d, mpierr)
+    call MPI_BCAST(nir_albedoav_surf, 1, MY_REAL, 0, comm3d, mpierr)
+    call MPI_BCAST(vis_albedoav_surf, 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(Qnetav       , 1, MY_REAL, 0, comm3d, mpierr)
 
     call MPI_BCAST(rsminav      , 1, MY_REAL, 0, comm3d, mpierr)
@@ -548,6 +550,16 @@ contains
     endif
 
 
+    if(iradiation == 4) then
+      if(rad_shortw .and. (albedoav_surf == -1 .and. ( (vis_albedoav_surf == -1) .or. (nir_albedoav_surf == -1) ) ) ) then
+        stop "NAMSURFACE: albedoav_surf is not set, vis_albedoav_surf and nir_albedoav_surf also not set"
+       end if
+    else
+      if(rad_shortw .and. (albedoav_surf == -1 )) then
+        stop "NAMSURFACE: albedoav_surf is not set"
+       end if
+    end if
+
     if(isurf == 1) then
       if(tsoilav(1) == -1 .or. tsoilav(2) == -1 .or. tsoilav(3) == -1 .or. tsoilav(4) == -1) then
         stop "NAMSURFACE: tsoil is not set"
@@ -567,9 +579,9 @@ contains
       if(lambdaskinav == -1) then
         stop "NAMSURFACE: lambdaskinav is not set"
       end if
-      if(albedoav_surf == -1) then
-        stop "NAMSURFACE: albedoav_surf is not set"
-      end if
+!      if(albedoav_surf == -1) then
+!        stop "NAMSURFACE: albedoav_surf is not set"
+!      end if
       if(Qnetav == -1) then
         stop "NAMSURFACE: Qnetav is not set"
       end if
@@ -612,6 +624,8 @@ contains
     end if
 
     allocate(albedo_surf(i2,j2))
+    allocate(vis_albedo_surf(i2,j2))
+    allocate(nir_albedo_surf(i2,j2))
     allocate(z0m(i2,j2))
     allocate(z0h(i2,j2))
     allocate(obl(i2,j2))
@@ -620,9 +634,6 @@ contains
     allocate(Cm(i2,j2))
     allocate(Cs(i2,j2))
 
-    if(rad_shortw .and. albedoav_surf == -1) then
-      stop "NAMSURFACE: albedoav_surf is not set"
-    end if
     if(iradiation == 1) then
       if(albedoav_surf == -1) then
         stop "NAMSURFACE: albedoav_surf is not set"
@@ -637,7 +648,20 @@ contains
       lwuavn =  0.
     end if
 
-    albedo_surf     = albedoav_surf
+    if (iradiation == 4 .and. .not. (vis_albedoav_surf == -1 .or. nir_albedoav_surf == -1)) then
+        vis_albedo_surf = vis_albedoav_surf
+        nir_albedo_surf = nir_albedoav_surf
+        if (albedoav_surf == -1) then
+            albedo_surf = (vis_albedoav_surf + nir_albedoav_surf)/2
+        else
+            albedo_surf = albedoav_surf
+        end if
+    else
+        albedo_surf     = albedoav_surf
+        vis_albedo_surf = albedoav_surf
+        nir_albedo_surf = albedoav_surf
+    endif
+
     if(lhetero) then
       do j=1,j2
         tempy=patchynr(j)
@@ -658,7 +682,8 @@ contains
       z0h        = z0hav
     endif
 
-    albedo_rad(:,:) = albedo_surf(:,:)
+    if (iradiation /= 4) albedo_rad(:,:) = albedo_surf(:,:)
+
     ! 3. Initialize surface layer
     allocate(ustar   (i2,j2))
 

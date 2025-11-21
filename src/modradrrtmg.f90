@@ -771,7 +771,7 @@ contains
     use modglobal,   only : xday,xlat,xlon,imax,xtime,rtimee,i1
     use shr_orb_mod, only : shr_orb_decl
     use modmpi,      only : myid
-    use modsurfdata, only : albedoav_surf,albedo_surf,iband_uvs_s,iband_uvs_e,iband_nir_s,iband_nir_e,weight_b
+    use modsurfdata, only : albedoav_surf,vis_albedoav_surf,nir_albedoav_surf,albedo_surf,iband_uvs_s,iband_uvs_e,iband_nir_s,iband_nir_e,weight_b
     use modcanopy,   only : lcanopyeb,albdir_can,albdif_can
 
     implicit none
@@ -834,10 +834,10 @@ contains
         aldif(1:imax) = aldif(1:imax) / sum(weight_b(iband_nir_s:iband_nir_e))
 
       else if (lCnstAlbedo) then
-        aldir = albedoav_surf
-        asdir = albedoav_surf
-        aldif = albedoav_surf        ! Specification of the diffuse albedo is also important for the
-        asdif = albedoav_surf        ! total surface albedo
+        aldir = max(albedoav_surf, nir_albedoav_surf)
+        asdir = max(albedoav_surf, vis_albedoav_surf)
+        aldif = max(albedoav_surf, nir_albedoav_surf)        ! Specification of the diffuse albedo is also important for the
+        asdif = max(albedoav_surf, vis_albedoav_surf)        ! total surface albedo
       else
         call albedo             ! calculate albedo for the solarZenithAngleCos
       end if

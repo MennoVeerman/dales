@@ -34,8 +34,8 @@ implicit none
 PUBLIC :: initcanstat, canstat, exitcanstat
 save
 !NetCDF variables
-  integer,parameter :: nvar = 31
-  integer,parameter :: nvar2 = 2 !variables on cell interfaces
+  integer,parameter :: nvar = 30
+  integer,parameter :: nvar2 = 3 !variables on cell interfaces
   character(80),dimension(nvar,4) :: ncname
   character(80),dimension(nvar2,4) :: ncname2
 
@@ -270,37 +270,37 @@ contains
       if (myid==0) then
         call ncinfo(ncname( 1,:),'padf','Plant area density at full level','m^2/m^3','tt')
         call ncinfo(ncname( 2,:),'paif','Plant area index at full level','m^2/m^2','tt')
-        call ncinfo(ncname( 3,:),'paih','Plant area index at half level','m^2/m^2','tt')
-        call ncinfo(ncname( 4,:),'cfSL','Fraction of sunlit leaves in canopy','-','tt')
-        call ncinfo(ncname( 5,:),'shcan','Canopy sensible heat source','W/m^3','tt')
-        call ncinfo(ncname( 6,:),'lecan','Canopy latent heat source','W/m^3','tt')
-        call ncinfo(ncname( 7,:),'fco2can','Canopy CO2 source','mg C/(s m^3)','tt')
-        call ncinfo(ncname( 8,:),'sthetamn','Canopy temperature tendency','K/s','tt')
-        call ncinfo(ncname( 9,:),'sqtmn','Canopy specific humidity tendency','Kg_w/Kg_a/s','tt')
-        call ncinfo(ncname( 10,:),'sco2mn','Canopy CO2 tendency','ppb/s','tt')
-        call ncinfo(ncname( 11,:),'t_leafshadmn','Shaded leaves temperature','K','tt')
-        call ncinfo(ncname( 12,:),'t_leafsunmn','Sunlit leaves temperature','K','tt')
-        call ncinfo(ncname( 13,:),'gcc_leafshadmn','Shaded leaves stomatal CO2 conductance','mg s-1','tt')
-        call ncinfo(ncname( 14,:),'gcc_leafsunmn','Sunlit leaves stomatal CO2 conductance','mg s-1)','tt')
-        call ncinfo(ncname( 15,:),'ci_leafshadmn','Shaded leaves stomatal CO2 conductance','mg m-3','tt')
-        call ncinfo(ncname( 16,:),'ci_leafsunmn','Sunlit leaves stomatal CO2 conductance','mg m-3','tt')
-        call ncinfo(ncname( 17,:),'sh_leafshadmn','Shaded leaves sensible heat flux','W/m^2','tt')
-        call ncinfo(ncname( 18,:),'sh_leafsunmn','Sunlit leaves sensible heat flux','W/m^2','tt')
-        call ncinfo(ncname( 19,:),'le_leafshadmn','Shaded leaves latent heat flux','W/m^2','tt')
-        call ncinfo(ncname( 20,:),'le_leafsunmn','Sunlit leaveslatent heat flux','W/m^2','tt')
-        call ncinfo(ncname( 21,:),'An_leafshadmn','Shaded leaves net carbon absorption','mg C /s /m^2','tt')
-        call ncinfo(ncname( 22,:),'An_leafsunmn','Sunlit leaves net carbon absorption','mg C /s /m^2','tt')
-        call ncinfo(ncname( 23,:),'rb_leafshadmn','Shaded leaves boundary layer heat conductance','s/m','tt')
-        call ncinfo(ncname( 24,:),'rb_leafsunmn','Sunlit leaves boundary layer heat conductance','s/m','tt')
-        call ncinfo(ncname( 25,:),'LWin_leafshadmn','LW into shaded leaves','W/m^2','tt')
-        call ncinfo(ncname( 26,:),'LWin_leafsunmn','LW into sunlit leaves','W/m^2','tt')
-        call ncinfo(ncname( 27,:),'LWout_leafshadmn','LW out from shaded leaves','W/m^2','tt')
-        call ncinfo(ncname( 28,:),'LWout_leafsunmn','LW out from sunlit leaves','W/m^2','tt')
-        call ncinfo(ncname( 29,:),'absSWleaf_shadmn','Absorbed SW by sahded leaves','W/m2','tt')
-        call ncinfo(ncname( 30,:),'absSWleaf_allsunmn','Absorbed SW by sunlit leaves','W/m2','tt')
-        call ncinfo(ncname( 31,:),'absSWlayermn','Absorbed SW in the layer','W/m2','tt') ! weighing sunlit and shaded leave fraction
+        call ncinfo(ncname( 3,:),'cfSL','Fraction of sunlit leaves in canopy','-','tt')
+        call ncinfo(ncname( 4,:),'shcan','Canopy sensible heat source','W/m^3','tt')
+        call ncinfo(ncname( 5,:),'lecan','Canopy latent heat source','W/m^3','tt')
+        call ncinfo(ncname( 6,:),'fco2can','Canopy CO2 source','mg C/(s m^3)','tt')
+        call ncinfo(ncname( 7,:),'sthetamn','Canopy temperature tendency','K/s','tt')
+        call ncinfo(ncname( 8,:),'sqtmn','Canopy specific humidity tendency','Kg_w/Kg_a/s','tt')
+        call ncinfo(ncname( 9,:),'sco2mn','Canopy CO2 tendency','ppb/s','tt')
+        call ncinfo(ncname( 10,:),'t_leafshadmn','Shaded leaves temperature','K','tt')
+        call ncinfo(ncname( 11,:),'t_leafsunmn','Sunlit leaves temperature','K','tt')
+        call ncinfo(ncname( 12,:),'gcc_leafshadmn','Shaded leaves stomatal CO2 conductance','mg s-1','tt')
+        call ncinfo(ncname( 13,:),'gcc_leafsunmn','Sunlit leaves stomatal CO2 conductance','mg s-1)','tt')
+        call ncinfo(ncname( 14,:),'ci_leafshadmn','Shaded leaves stomatal CO2 conductance','mg m-3','tt')
+        call ncinfo(ncname( 15,:),'ci_leafsunmn','Sunlit leaves stomatal CO2 conductance','mg m-3','tt')
+        call ncinfo(ncname( 16,:),'sh_leafshadmn','Shaded leaves sensible heat flux','W/m^2','tt')
+        call ncinfo(ncname( 17,:),'sh_leafsunmn','Sunlit leaves sensible heat flux','W/m^2','tt')
+        call ncinfo(ncname( 18,:),'le_leafshadmn','Shaded leaves latent heat flux','W/m^2','tt')
+        call ncinfo(ncname( 19,:),'le_leafsunmn','Sunlit leaveslatent heat flux','W/m^2','tt')
+        call ncinfo(ncname( 20,:),'An_leafshadmn','Shaded leaves net carbon absorption','mg C /s /m^2','tt')
+        call ncinfo(ncname( 21,:),'An_leafsunmn','Sunlit leaves net carbon absorption','mg C /s /m^2','tt')
+        call ncinfo(ncname( 22,:),'rb_leafshadmn','Shaded leaves boundary layer heat conductance','s/m','tt')
+        call ncinfo(ncname( 23,:),'rb_leafsunmn','Sunlit leaves boundary layer heat conductance','s/m','tt')
+        call ncinfo(ncname( 24,:),'LWin_leafshadmn','LW into shaded leaves','W/m^2','tt')
+        call ncinfo(ncname( 25,:),'LWin_leafsunmn','LW into sunlit leaves','W/m^2','tt')
+        call ncinfo(ncname( 26,:),'LWout_leafshadmn','LW out from shaded leaves','W/m^2','tt')
+        call ncinfo(ncname( 27,:),'LWout_leafsunmn','LW out from sunlit leaves','W/m^2','tt')
+        call ncinfo(ncname( 28,:),'absSWleaf_shadmn','Absorbed SW by sahded leaves','W/m2','tt')
+        call ncinfo(ncname( 29,:),'absSWleaf_allsunmn','Absorbed SW by sunlit leaves','W/m2','tt')
+        call ncinfo(ncname( 30,:),'absSWlayermn','Absorbed SW in the layer','W/m2','tt') ! weighing sunlit and shaded leave fraction
         call ncinfo(ncname2( 1,:),'PAR_downmn','downwelling PAR within canopy','W/m2','mt')
         call ncinfo(ncname2( 2,:),'PAR_upmn','upwelling PAR within canopy','W/m2','mt')
+        call ncinfo(ncname2( 3,:),'paih','Plant area index at half level','m^2/m^2','tt')
 
         call define_nc( ncid_prof, NVar, ncname)
         call define_nc( ncid_prof, NVar2, ncname2)
@@ -548,37 +548,37 @@ contains
       if (lnetcdf) then
         vars(:, 1) = padf
         vars(:, 2) = paif(:ncanopy)
-        vars(:, 3) = paih(:ncanopy)
-        vars(:, 4) = cfSLmn
-        vars(:, 5) = shcanmn
-        vars(:, 6) = lecanmn
-        vars(:, 7) = fco2canmn
-        vars(:, 8) = sthetamn
-        vars(:, 9) = sqtmn
-        vars(:, 10) = sco2mn
-        vars(:, 11) = t_leafshadmn
-        vars(:, 12) = t_leafsunmn
-        vars(:, 13) = gcc_leafshadmn
-        vars(:, 14) = gcc_leafsunmn
-        vars(:, 15) = ci_leafshadmn
-        vars(:, 16) = ci_leafsunmn
-        vars(:, 17) = sh_leafshadmn
-        vars(:, 18) = sh_leafsunmn
-        vars(:, 19) = le_leafshadmn
-        vars(:, 20) = le_leafsunmn
-        vars(:, 21) = An_leafshadmn
-        vars(:, 22) = An_leafsunmn
-        vars(:, 23) = rb_leafshadmn
-        vars(:, 24) = rb_leafsunmn
-        vars(:, 25) = LWin_leafshadmn
-        vars(:, 26) = LWin_leafsunmn
-        vars(:, 27) = LWout_leafshadmn
-        vars(:, 28) = LWout_leafsunmn
-        vars(:, 29) = absSWleaf_shadmn
-        vars(:, 30) = absSWleaf_allsunmn
-        vars(:, 31) = absSWlayermn
+        vars(:, 3) = cfSLmn
+        vars(:, 4) = shcanmn
+        vars(:, 5) = lecanmn
+        vars(:, 6) = fco2canmn
+        vars(:, 7) = sthetamn
+        vars(:, 8) = sqtmn
+        vars(:, 9) = sco2mn
+        vars(:, 10) = t_leafshadmn
+        vars(:, 11) = t_leafsunmn
+        vars(:, 12) = gcc_leafshadmn
+        vars(:, 13) = gcc_leafsunmn
+        vars(:, 14) = ci_leafshadmn
+        vars(:, 15) = ci_leafsunmn
+        vars(:, 16) = sh_leafshadmn
+        vars(:, 17) = sh_leafsunmn
+        vars(:, 18) = le_leafshadmn
+        vars(:, 19) = le_leafsunmn
+        vars(:, 20) = An_leafshadmn
+        vars(:, 21) = An_leafsunmn
+        vars(:, 22) = rb_leafshadmn
+        vars(:, 23) = rb_leafsunmn
+        vars(:, 24) = LWin_leafshadmn
+        vars(:, 25) = LWin_leafsunmn
+        vars(:, 26) = LWout_leafshadmn
+        vars(:, 27) = LWout_leafsunmn
+        vars(:, 28) = absSWleaf_shadmn
+        vars(:, 29) = absSWleaf_allsunmn
+        vars(:, 30) = absSWlayermn
         vars2(:, 1) = PARd_canmn
         vars2(:, 2) = PARu_canmn
+        vars2(:, 3) = paih(:ncanopy+1)
        call writestat_nc(ncid_prof,nvar,ncname,vars(1:ncanopy,:),nrec_prof,ncanopy)
        call writestat_nc(ncid_prof,nvar2,ncname2,vars2(1:ncanopy+1,:),nrec_prof,ncanopy+1)
       end if

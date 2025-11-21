@@ -110,6 +110,10 @@ SAVE
   real, allocatable :: qskin_surf (:,:) !<  Surface skin specific humidity [kg/kg]
   real, allocatable :: albedo_surf(:,:) !<  Surface albedo [-]
   real              :: albedoav_surf = -1
+  real, allocatable :: vis_albedo_surf(:,:) !<  VIS(and UV) surface albedo [-], correspond to the 0.2-0.7 um albedo of rrtmg
+  real              :: vis_albedoav_surf = -1
+  real, allocatable :: nir_albedo_surf(:,:) !<  NIR Surface albedo [-], correspond to the 0.7-5.0 um albedo of rrtmg
+  real              :: nir_albedoav_surf = -1
   real, allocatable :: LAI_surf     (:,:) !<  Leaf area index understory vegetation [-]
   real              :: LAI_surfav    = -1
   real, allocatable :: cveg       (:,:) !<  Vegetation cover [-]
@@ -202,6 +206,7 @@ SAVE
   real, dimension(nangle_gauss) :: angle_g    = (/0.1127,   0.5,0.8873/) !<  Sines of the leaf angles compared to the sun in the first Gaussian integration
   real, dimension(nband_can)  :: sigma_b = (/0.157, 0.092, 0.622, 0.750/) ! UV PAR FAR-RED NIR/) !<  Scattering coefficients of leaves-controls the effective albedo
   real, dimension(nband_can)  :: weight_b = (/0.128, 0.450, 0.055, 0.367/) !UV PAR FAR-RED NIR/) !<  Fraction of top-of-canopy irradiance per spectral band
+
   !real                      :: kdfbl      =                      0.8 !<  Diffuse radiation extinction coefficient for black leaves
   real, allocatable         :: gshad_old    (:,:,:)
   real, allocatable         :: gleafsun_old (:,:,:,:)
@@ -378,7 +383,7 @@ function rho_c_dir(mu, rho_c_dif)
     return
 end function
 
-subroutine canopyrad_sw(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegrad_meth, & ! in
+subroutine canopyrad_sw(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,albedo,clump,vegrad_meth, & ! in
                         Hshad,Hsun,fracSL,                                 & ! out needed for vegetation
                         effalb_dir,effalb_dif,effalb_phi,phidircan,phidifcan,phiucan,isoil) ! out needed for radiation if lcanopyeb
   use modraddata , only : zenith
@@ -390,7 +395,7 @@ subroutine canopyrad_sw(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegra
   real, intent(in),dimension(layers) :: LAI_can ! array with LAI above the evaluated level. Array goes from canopy bottom to top.
   real, intent(in)   :: PHIdir_TOC                  ! Direct  radiation at vegetation top, always >0
   real, intent(in)   :: PHIdif_TOC                  ! Diffuse radition at vegetation top, always >0
-  real, intent(in)   :: alb                     ! ground albedo
+  real, intent(in),dimension(nband_can) :: albedo                     ! ground albedo
   real, intent(in)   :: clump                     ! leaf clumping index
   integer,intent(in) :: vegrad_meth               !method to calculate radiation and absorbed fluxes in canopy  =1 XPB2017, =2 Goudriaan and Van Laar 1996
 
@@ -456,8 +461,8 @@ subroutine canopyrad_sw(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegra
           if (ib == 1) fracSL(k)   = exp(-kdrbl * iLAI)      ! Fraction of sun-lit leaves
           PHIdfD = PHIdif_TOC_b * (1.0-ref)     * exp(-kdf * iLAI    )     ! Total downward PHI due to diffuse radiation at canopy top
           PHIdrD = PHIdir_TOC_b * (1.0-ref_dir) * exp(-kdr * iLAI    )     ! Total downward PHI due to direct radiation at canopy top
-          PHIdfU = PHIdif_TOC_b *  exp(-kdf * LAI) * alb * (1.0-ref)     * exp(-kdf * (LAI-iLAI)) ! Total upward (reflected) PHI due to original diffuse radiation
-          PHIdrU = PHIdir_TOC_b *  exp(-kdr * LAI) * alb * (1.0-ref)     * exp(-kdf * (LAI-iLAI)) ! Total upward (reflected) PHI due to original direct radiation
+          PHIdfU = PHIdif_TOC_b *  exp(-kdf * LAI) * albedo(ib) * (1.0-ref)     * exp(-kdf * (LAI-iLAI)) ! Total upward (reflected) PHI due to original diffuse radiation
+          PHIdrU = PHIdir_TOC_b *  exp(-kdr * LAI) * albedo(ib) * (1.0-ref)     * exp(-kdf * (LAI-iLAI)) ! Total upward (reflected) PHI due to original direct radiation
           PHIdfT = PHIdfD + PHIdfU                                   ! Total PHI due to diffuse radiation at canopy top
           PHIdrT = PHIdrD + PHIdrU                                   ! Total PHI due to direct radiation at canopy top
           PHIdirprof = (1.0-sigma) * PHIdir_TOC_b * fracSL(k)              ! Purely direct PHI (can only be downward) reaching leaves
@@ -503,8 +508,8 @@ subroutine canopyrad_sw(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegra
         end do
 
   !!!!  calculate amount of upward light at canopy top coming from surface reflection (PHIdrU and PHIdfU with iLAI=0)
-        PHIdirref_TOC = PHIdir_TOC_b *  exp(-kdr * LAI) * alb *  exp(-kdf * (LAI-0)) ! Total dir upward at canopy top
-        PHIdifref_TOC = PHIdif_TOC_b *  exp(-kdf * LAI) * alb *  exp(-kdf * (LAI-0)) ! Total dif upward at canopy top
+        PHIdirref_TOC = PHIdir_TOC_b *  exp(-kdr * LAI) * albedo(ib) *  exp(-kdf * (LAI-0)) ! Total dir upward at canopy top
+        PHIdifref_TOC = PHIdif_TOC_b *  exp(-kdf * LAI) * albedo(ib) *  exp(-kdf * (LAI-0)) ! Total dif upward at canopy top
         !calculate effective albedos for direct, diffuse and total SW radiation assuming PHI and sw albedos are identical
         effalb_dir(ib) =  (ref_dir * PHIdir_TOC_b + PHIdirref_TOC) / PHIdir_TOC_b
         effalb_dif(ib) =  (ref * PHIdif_TOC_b + PHIdifref_TOC) / PHIdif_TOC_b
@@ -514,7 +519,8 @@ subroutine canopyrad_sw(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,alb,clump,vegra
       else if (vegrad_meth==2) then ! Goud1996
         !follow goudiraan and van laar  1996
         !DIR:
-        rho_s = alb
+        rho_s = albedo(ib)
+
         eta_dir = (ref_dir-rho_s) /(rho_s-(1./ref_dir))
         exp_dir_dif = exp(-kdf*LAI) * exp(-kdr*LAI)
         denom_dir = (1+eta_dir*exp_dir_dif)
