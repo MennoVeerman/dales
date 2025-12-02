@@ -66,7 +66,7 @@ module modcanopy
   real     :: lwidth       = 0.02      !< !leaf width/shoot diameter [m]
   real     :: llength      = 0.1       !< leaf/shoot length [m]
   real     :: lclump       = 1.0       !< effect of clumping / clustering of canopy leaves on radiation, no effect by default.
-  integer  :: canrad_meth  = 2       !< effect of clumping / clustering of canopy leaves on radiation, no effect by default.
+  integer  :: sw_canrad_meth  = 2         ! method to calculate radiation and absorbed fluxes in canopy  =1 XPB2017, =2 Goudriaan and Van Laar 1994 (with fitted canopy reflectance coefficients), 3= norman (1979) model
   !real     :: lthick       = 0.001     !< average leaf thickness[m]
   logical  :: def_LWcan     = .true.   !< Switch to use default LW profile calculation in canopy
   logical  :: lrelaxgc_can = .false.   !< Switch to delay plant response at canopy.Timescale is equal to 1/kgc_can
@@ -168,7 +168,7 @@ contains
                         wth_total, wqt_total, wsv_total, wth_can, wqt_can, wsv_can, &
                         wth_alph, wqt_alph, wsv_alph, &
                         lcanopyeb,lwidth,llength,transpiretype,leaf_eps,lclump,&
-                        lrelaxgc_can,kgc_can,lrelaxci_can,kci_can,canrad_meth,def_LWcan
+                        lrelaxgc_can,kgc_can,lrelaxci_can,kci_can,sw_canrad_meth,def_LWcan
 
 
     if(myid==0) then
@@ -218,7 +218,7 @@ contains
     call MPI_BCAST(kgc_can      ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(lrelaxci_can ,   1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(kci_can      ,   1, my_real     , 0, comm3d, mpierr)
-    call MPI_BCAST(canrad_meth  ,   1, mpi_integer , 0, comm3d, mpierr)
+    call MPI_BCAST(sw_canrad_meth  ,   1, mpi_integer , 0, comm3d, mpierr)
     call MPI_BCAST(def_LWcan    ,   1, mpi_integer , 0, comm3d, mpierr)
 
     if (.not. (lcanopy)) return
@@ -277,30 +277,6 @@ contains
                      0.29475677, &
                      0.00000000 /)
 
-      !padfactor = (/ 0.4259088000000000, &
-      !               1.3781192000000000, &
-      !               0.6199392500000000, &
-      !               0.8714601900000000, &
-      !               1.2005933200000000, &
-      !               1.4137872600000000, &
-      !               1.4525933500000000, &
-      !               1.3941446800000000, &
-      !               1.1814298200000000, &
-      !               0.2953574500000000, &
-      !               0.0000000000000000  /)
-
-
-      !padfactor = (/ 0.4666666666666667, &
-      !               0.5307086614173228, &
-      !               0.6792650918635170, &
-      !               0.9548556430446193, &
-      !               1.3154855643044620, &
-      !               1.5490813648293960, &
-      !               1.5916010498687660, &
-      !               1.5275590551181100, &
-      !               1.2944881889763780, &
-      !               0.3236220472440945, &
-      !               0.0000000000000000  /)
     endif
     f_lai_h = lai_can / zh(1+ncanopy) ! LAI of canopy divided by height of the top of the canopy
 
@@ -634,7 +610,7 @@ contains
    !                                                      Xabier Pedruzo, 2020
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt,Rd,pref0
-    use modsurfdata,only : phitot,weight_g,indCO2,vis_albedo_surf,nir_albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad_sw,canopyrad_lw,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
+    use modsurfdata,only : phitot,weight_g,indCO2,vis_albedo_surf,nir_albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad_norman_sw,canopyrad_sw,canopyrad_lw,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
     use modfields, only  : thl0,rhof,qt0,exnf,u0,v0,presf,svm,tmp0
     use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad,sfc_emis
     implicit none
@@ -667,10 +643,19 @@ contains
         !assume scattering/reflections properties of leaves is the same for PAR and SW, becauswe canopyrad_sw uses coefficients for PAR
         SWdirTOC = max(0.1,abs(swdir(i,j,ncanopy+1)))
         SWdifTOC = max(0.1,abs(swdif(i,j,ncanopy+1)))
-        call canopyrad_sw(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,soil_albedo,lclump,canrad_meth,& ! in
-                       temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
-                       albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
-                       swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation
+
+        if (sw_vegrad_meth==3) then
+            call canopyrad_norman_sw(ncanopy+1,lai_can,paif_local,tau_dif_can,SWdirTOC,SWdifTOC,soil_albedo,lclump,& ! in
+                           temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
+                           albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
+                           swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation
+        else
+            call canopyrad_sw(ncanopy+1,lai_can,iLAI_can,SWdirTOC,SWdifTOC,soil_albedo,lclump,sw_canrad_meth,& ! in
+                           temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
+                           albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
+                           swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation
+        end if
+
         absleaf_shad_b(i,j,:,:) = temp_absleaf_shad_b(:,:)
 
         absSWleaf_shad(i,j,:) = sum(absleaf_shad_b(i,j,:,:), dim=2)
@@ -689,7 +674,7 @@ contains
         if (sinbeta>0.035) then ! daytime, same threshold as radpar
           kdrbl    = lclump * 0.5 / sinbeta
           do k_can=1,ncanopy
-            cfSL(k_can)   = exp(-kdrbl * paif(k_can)) ! needed for absSWlayer
+            cfSL(k_can)   = lclump * exp(-kdrbl * paif(k_can)) ! needed for absSWlayer
 
           enddo
         else
