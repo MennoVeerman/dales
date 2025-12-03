@@ -66,7 +66,8 @@ module modcanopy
   real     :: lwidth       = 0.02      !< !leaf width/shoot diameter [m]
   real     :: llength      = 0.1       !< leaf/shoot length [m]
   real     :: lclump       = 1.0       !< effect of clumping / clustering of canopy leaves on radiation, no effect by default.
-  integer  :: sw_canrad_meth  = 2         ! method to calculate radiation and absorbed fluxes in canopy  =1 XPB2017, =2 Goudriaan and Van Laar 1994 (with fitted canopy reflectance coefficients), 3= norman (1979) model
+  integer  :: sw_canrad_meth  = 2      ! method to calculate shortwave radiation and absorbed fluxes in canopy  =1 XPB2017, =2 Goudriaan and Van Laar 1994 (with fitted canopy reflectance coefficients), 3= norman (1979) model
+  integer  :: lw_canrad_meth  = 1      ! method to calculate longwave radiation and absorbed fluxes in canopy  =1 no backscattering solution, 2: equal back and forward scattering (Bonan2019 matrix solution)
   !real     :: lthick       = 0.001     !< average leaf thickness[m]
   logical  :: def_LWcan     = .true.   !< Switch to use default LW profile calculation in canopy
   logical  :: lrelaxgc_can = .false.   !< Switch to delay plant response at canopy.Timescale is equal to 1/kgc_can
@@ -168,7 +169,7 @@ contains
                         wth_total, wqt_total, wsv_total, wth_can, wqt_can, wsv_can, &
                         wth_alph, wqt_alph, wsv_alph, &
                         lcanopyeb,lwidth,llength,transpiretype,leaf_eps,lclump,&
-                        lrelaxgc_can,kgc_can,lrelaxci_can,kci_can,sw_canrad_meth,def_LWcan
+                        lrelaxgc_can,kgc_can,lrelaxci_can,kci_can,sw_canrad_meth,lw_canrad_meth,def_LWcan
 
 
     if(myid==0) then
@@ -219,6 +220,7 @@ contains
     call MPI_BCAST(lrelaxci_can ,   1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(kci_can      ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(sw_canrad_meth  ,   1, mpi_integer , 0, comm3d, mpierr)
+    call MPI_BCAST(lw_canrad_meth  ,   1, mpi_integer , 0, comm3d, mpierr)
     call MPI_BCAST(def_LWcan    ,   1, mpi_integer , 0, comm3d, mpierr)
 
     if (.not. (lcanopy)) return
@@ -610,7 +612,8 @@ contains
    !                                                      Xabier Pedruzo, 2020
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     use modglobal, only  : j1,i1,cp,rlv,rk3step,dzf,dzh,rhow,xtime,rtimee,timee,xday,xlat,xlon,boltz,dt,Rd,pref0
-    use modsurfdata,only : phitot,weight_g,indCO2,vis_albedo_surf,nir_albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air,canopyrad_norman_sw,canopyrad_sw,canopyrad_lw,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
+    use modsurfdata,only : phitot,weight_g,indCO2,vis_albedo_surf,nir_albedo_surf,l3leaves,nangle_gauss,MW_CO2,MW_Air, &
+                           canopyrad_norman_sw,canopyrad_sw,canopyrad_lw_norefl,canopyrad_lw,nuco2q,pCw,tskinm_surf,nband_can,iband_par,weight_b
     use modfields, only  : thl0,rhof,qt0,exnf,u0,v0,presf,svm,tmp0
     use modraddata, only : swdir,swdif,swd,swu,lwu,lwd,tskin_rad,albedo_rad,iradiation,irad_par,irad_rrtmg,irad_lsm,rad_longw,zenith,tnext,itimerad,sfc_emis
     implicit none
@@ -644,7 +647,7 @@ contains
         SWdirTOC = max(0.1,abs(swdir(i,j,ncanopy+1)))
         SWdifTOC = max(0.1,abs(swdif(i,j,ncanopy+1)))
 
-        if (sw_vegrad_meth==3) then
+        if (sw_canrad_meth==3) then
             call canopyrad_norman_sw(ncanopy+1,lai_can,paif_local,tau_dif_can,SWdirTOC,SWdifTOC,soil_albedo,lclump,& ! in
                            temp_absleaf_shad_b,absleaf_sun_b,cfSL_h,                                         & ! out for vegetation
                            albdir_can(i,j,:),albdif_can(i,j,:),albsw_can(i,j,:),                                 & ! out for radiation
@@ -699,9 +702,15 @@ contains
         lwdTOC = abs(lwd(i,j,ncanopy+1))
     endif
 
-    call canopyrad_lw(ncanopy, paif_local, lwdTOC, t_leafshad(i,j,:), t_leafsun(i,j,:), cfSL, &
+    if (lw_canrad_meth==1) then
+        call canopyrad_lw_norefl(ncanopy, paif_local, lwdTOC, t_leafshad(i,j,:), t_leafsun(i,j,:), cfSL, &
                      tau_dif_can, tskinm_surf(i,j) * exner, leaf_eps, lclump, lwd_can, lwu_can, &
                      LWin_leafshad(i,j,:),LWin_leafsun(i,j,:), .false.)
+    else
+        call canopyrad_lw(ncanopy, paif_local, lwdTOC, t_leafshad(i,j,:), t_leafsun(i,j,:), cfSL, &
+                     tau_dif_can, tskinm_surf(i,j) * exner, leaf_eps, lclump, lwd_can, lwu_can, &
+                     LWin_leafshad(i,j,:),LWin_leafsun(i,j,:), .false.)
+    end if
 
     !                                                                                                !
     !######### STEP 2 - Leaf energy balance per level for sunlit and shaded leaves ####################
@@ -785,10 +794,15 @@ contains
    !######### STEP 4 -Radiation inside the canopy, part2: calculate LW profiles again with updates leaf temperature ####################
    !
 
-
-    call canopyrad_lw(ncanopy, paif_local, lwdTOC, t_leafshad(i,j,:), t_leafsun(i,j,:), cfSL, &
-                      tau_dif_can, tskinm_surf(i,j) * exner, leaf_eps, lclump, lwd_can, lwu_can, &
-                      LWin_leafshad(i,j,:),LWin_leafsun(i,j,:), .true.) !.true.: only return radiative fluxes, do not recompute absorption rates
+    if (lw_canrad_meth==1) then
+        call canopyrad_lw_norefl(ncanopy, paif_local, lwdTOC, t_leafshad(i,j,:), t_leafsun(i,j,:), cfSL, &
+                     tau_dif_can, tskinm_surf(i,j) * exner, leaf_eps, lclump, lwd_can, lwu_can, &
+                     LWin_leafshad(i,j,:),LWin_leafsun(i,j,:), .true.)
+    else
+        call canopyrad_lw(ncanopy, paif_local, lwdTOC, t_leafshad(i,j,:), t_leafsun(i,j,:), cfSL, &
+                     tau_dif_can, tskinm_surf(i,j) * exner, leaf_eps, lclump, lwd_can, lwu_can, &
+                     LWin_leafshad(i,j,:),LWin_leafsun(i,j,:), .true.)
+    end if
 
    !                                                                                                !
    !######### STEP 5 - Pass on variables needed to radiation ####################

@@ -755,7 +755,7 @@ subroutine canopyrad_sw(layers,LAI,LAI_can,PHIdir_TOC,PHIdif_TOC,albedo,clump,sw
 return
 end subroutine ! canopyrad_sw
 
-subroutine canopyrad_lw(layers,LAI_can,lwd_TOC,T_shad,T_sun, cfSL, tau_dif_can, & ! in
+subroutine canopyrad_lw_norefl(layers,LA,lwd_TOC,T_shad,T_sun, cfSL, tau_dif_can, & ! in
                         tskin_sfc, leaf_eps, lclump,                          & ! in
                         lwd_can, lwu_can, LW_in_leaf_shad, LW_in_leaf_sun, only_fluxes)    ! out needed for vegetation
   use modraddata, only : sfc_emis
@@ -763,7 +763,7 @@ subroutine canopyrad_lw(layers,LAI_can,lwd_TOC,T_shad,T_sun, cfSL, tau_dif_can, 
   implicit none
 
   integer,intent(in) :: layers
-  real, intent(in),dimension(layers) :: LAI_can ! array with LAI above the evaluated level. Array goes from canopy bottom to top.
+  real, intent(in),dimension(layers) :: LA ! array with LAI of the the current level
   real, intent(in),dimension(layers) :: T_shad, T_sun ! Shaded and sunlit leaf temperatures
   real, intent(in),dimension(layers) :: cfSL    ! fraction of sunlit leaves per layer
   real, intent(in),dimension(layers) :: tau_dif_can ! layer-wise diffuse optical depth
@@ -813,17 +813,100 @@ subroutine canopyrad_lw(layers,LAI_can,lwd_TOC,T_shad,T_sun, cfSL, tau_dif_can, 
       H = (leaf_eps * (lwd_can(k_can+1) + lwu_can(k_can)) - 2 * sb_layer_mean(k_can) ) * (1-tau_dif_can(k_can))
 
       ! total LW emitted by leaves in layer
-      lay_emis = 2 * sb_layer_mean(k_can) * LAI_can(k_can)
+      lay_emis = 2 * sb_layer_mean(k_can) * LA(k_can)
 
       ! net lw fluxes into leaves: net flux + lay_emis
       ! Currently, no split between sunlit and shaded leaves
-      LW_in_leaf_shad(k_can) = (H + lay_emis)/LAI_can(k_can)
+      LW_in_leaf_shad(k_can) = (H + lay_emis)/LA(k_can)
       LW_in_leaf_sun(k_can) = LW_in_leaf_shad(k_can)
     end do
   end if
 
 return
 end subroutine ! canopyrad_sw
+
+subroutine canopyrad_lw(layers,LA,lwd_TOC,T_shad,T_sun, cfSL, tau_dif_can, & ! in
+                        tskin_sfc, leaf_eps, lclump,                          & ! in
+                        lwd_can, lwu_can, LW_in_leaf_shad, LW_in_leaf_sun, only_fluxes)    ! out needed for vegetation
+  use modraddata, only : sfc_emis
+  use modglobal, only : boltz
+  implicit none
+
+  integer,intent(in) :: layers
+  real, intent(in),dimension(layers) :: LA    ! local leaf area (m2 leaf/m2 ground)
+  real, intent(in),dimension(layers)   :: tau_dif_can
+  real, intent(in),dimension(layers) :: T_shad, T_sun ! Shaded and sunlit leaf temperatures
+  real, intent(in),dimension(layers) :: cfSL    ! fraction of sunlit leaves per layer
+  real, intent(in)   :: lwd_TOC                  ! Downwelling longwave irradiance at vegetation top
+  real, intent(in)   :: tskin_sfc, leaf_eps, lclump
+  logical, intent(in)   :: only_fluxes
+
+  real, intent(out),dimension(layers)    :: LW_in_leaf_shad, LW_in_leaf_sun  ! LW radiation going into leaves from both side [W/m2leaf]
+  real, intent(out),dimension(layers+1)    :: lwd_can, lwu_can  ! LW fluxes
+
+  real, dimension(2*(layers+1)) :: m_a, m_c, m_d, m_d_nodir ! matrix coefficients (m_b==1)
+  real, dimension(2*(layers+1)) :: c_prime, d_prime
+  real, dimension(layers) :: tau_beam
+  real, dimension(layers) :: sb_layer_mean
+  real                    :: cf_a, cf_b, cf_c, cf_d ! temporary coefficients
+  real                    :: sigma, weight, leaf_refl_trans, H, lay_emis
+  real                    :: cos_sza, alb, minsinbeta = 1.e-10
+
+  integer :: k_can, ib
+
+  leaf_refl_trans = (1-leaf_eps) / 2.
+
+  m_d(1) = sfc_emis * boltz * tskin_sfc**4 ! bottom boundary condition
+  m_c(1) = -(1-sfc_emis)
+  do k_can=1, layers
+    cf_a = (1-tau_dif_can(k_can))*leaf_refl_trans - ((tau_dif_can(k_can) + (1-tau_dif_can(k_can))*leaf_refl_trans)**2) / ((1-tau_dif_can(k_can))*leaf_refl_trans)
+    cf_b = (tau_dif_can(k_can) + (1-tau_dif_can(k_can))*leaf_refl_trans) / ((1-tau_dif_can(k_can))*leaf_refl_trans)
+    m_a(2*k_can) = -cf_a
+    m_c(2*k_can+1) = -cf_a
+
+    m_a(2*k_can+1) = -cf_b
+    m_c(2*k_can) = -cf_b
+
+    sb_layer_mean(k_can) = leaf_eps * boltz * ( (T_sun(k_can)**4) * cfSL(k_can) + (t_shad(k_can)**4) * (1.-cfSL(k_can)) )
+    cf_c = sb_layer_mean(k_can) * (1-tau_dif_can(k_can)) * (1-cf_b)
+    cf_d = sb_layer_mean(k_can) * (1-tau_dif_can(k_can)) * (1-cf_b)
+    m_d(2*k_can) = cf_d
+    m_d(2*k_can+1) = cf_c
+  end do
+
+  ! forward sweep
+  c_prime(1) = m_c(1)
+  d_prime(1) = m_d(1)
+  do k_can=2,2*layers+1
+      c_prime(k_can) = m_c(k_can)/(1-m_a(k_can)*c_prime(k_can-1))
+      d_prime(k_can) = (m_d(k_can) - m_a(k_can)*d_prime(k_can-1)) / (1-m_a(k_can)*c_prime(k_can-1))
+  end do
+
+  ! backward sweep (fluxes)
+  lwd_can(layers+1) = lwd_TOC
+  do k_can=layers+1,2,-1
+      lwu_can(k_can) = d_prime(2*k_can-1) - c_prime(2*k_can-1) * lwd_can(k_can)
+      lwd_can(k_can-1) = d_prime(2*k_can-2) - c_prime(2*k_can-2) * lwu_can(k_can)
+  end do
+  lwu_can(1) = d_prime(1) - c_prime(1) * lwd_can(1)
+
+  if (.not. only_fluxes) then
+    ! compute LW radiation going into leaves
+    do k_can = 1, layers
+      ! net lw fluxes into layer
+      H = (leaf_eps * (lwd_can(k_can+1) + lwu_can(k_can)) - 2 * sb_layer_mean(k_can) ) * (1-tau_dif_can(k_can))
+
+      ! total LW emitted by leaves in layer
+      lay_emis = 2 * sb_layer_mean(k_can) * LA(k_can)
+
+      ! net lw fluxes into leaves: net flux + lay_emis
+      ! Currently, no split between sunlit and shaded leaves
+      LW_in_leaf_shad(k_can) = (H + lay_emis)/LA(k_can)
+      LW_in_leaf_sun(k_can) = LW_in_leaf_shad(k_can)
+    end do
+  end if
+
+end subroutine
 
 
 subroutine f_Ags(CO2air,qtair,dens,tairk,pair,t_skin,          & ! in
