@@ -95,7 +95,6 @@ module modcanopy
   real, allocatable :: windsp          (:)     !< Horizontal windspeed inside the canopy  [m s-1]
   real, allocatable :: LWin_leafshad   (:,:,:)     !< Inwards LW radiation at shaded leaves [W m-2]
   real, allocatable :: LWout_leafshad  (:,:,:)     !< Outwards LW radiation at shaded leaves [W m-2]
-  real, allocatable :: LWnet_leafshad  (:)     !< Net LW radiation at shaded leaves [W m-2]
   real, allocatable :: t_leafshad      (:,:,:) !< Leaf temperature of shaded leaves [K]
   real, allocatable :: rs_leafshad     (:)     !< Stomatal resistance of shaded leaves [s m-1]
   real, allocatable :: rb_leafshad     (:,:,:)     !< Leaf boundary layer resistance for shaded leaves[s m-1]
@@ -104,7 +103,6 @@ module modcanopy
   real, allocatable :: An_leafshad     (:,:,:)     !< Net carbon uptake at shaded leaves [mg C s-1 m-2_leaf)]
   real, allocatable :: LWin_leafsun    (:,:,:)     !< Inwards LW radiation at sunny leaves [W m-2]
   real, allocatable :: LWout_leafsun   (:,:,:)     !< Outwards LW radiation at sunny leaves [W m-2_leaf]
-  real, allocatable :: LWnet_leafsun   (:)     !< Net LW radiation at sunny leaves [W m-2]
   real, allocatable :: t_leafsun       (:,:,:) !< Leaf temperature of sunny leaves [K]
   real, allocatable :: rs_leafsun      (:)     !< Stomatal resistance of shaded leaves [s m-1]
    real, allocatable :: rb_leafsun      (:,:,:)     !< Leaf boundary layer resistance for shaded leaves[s m-1]
@@ -325,16 +323,16 @@ contains
     if (.not. (lcanopyeb)) return
 
     ldiscr = .true. ! use difference between canopy levels instead of analytic derivative in canopyrad_sw
-    allocate(absleaf_shad_b(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1,nband_can))
-    allocate(absSWleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
-    allocate(absPARleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
-    allocate(absSWleaf_allsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
-    allocate(absPARleaf_allsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
-    allocate(temp_absleaf_shad_b(ncanopy+1,nband_can))
-    allocate(absleaf_sun_b(ncanopy+1,nangle_gauss,nband_can))
-    allocate(absSWleaf_sun(ncanopy+1,nangle_gauss))
-    allocate(absPARleaf_sun(ncanopy+1,nangle_gauss))
-    allocate(absSWlayer(2-ih:i1+ih,2-jh:j1+jh,ncanopy+1))
+    allocate(absleaf_shad_b(2-ih:i1+ih,2-jh:j1+jh,ncanopy,nband_can))
+    allocate(absSWleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
+    allocate(absPARleaf_shad(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
+    allocate(absSWleaf_allsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
+    allocate(absPARleaf_allsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
+    allocate(temp_absleaf_shad_b(ncanopy,nband_can))
+    allocate(absleaf_sun_b(ncanopy,nangle_gauss,nband_can))
+    allocate(absSWleaf_sun(ncanopy,nangle_gauss))
+    allocate(absPARleaf_sun(ncanopy,nangle_gauss))
+    allocate(absSWlayer(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
     allocate(iLAI_can(ncanopy+1))
     allocate(cfSL_h(ncanopy+1))
     allocate(cfSL(ncanopy))
@@ -343,7 +341,6 @@ contains
 
     allocate(LWin_leafshad(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
     allocate(LWout_leafshad(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
-    allocate(LWnet_leafshad(ncanopy))
     allocate(t_leafshad(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
     allocate(rs_leafshad(ncanopy))
     allocate(rb_leafshad(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
@@ -353,7 +350,6 @@ contains
    ! no 3 leaf LEB, otherwise here we shoud add one extra dim for the angles
     allocate(LWin_leafsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
     allocate(LWout_leafsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
-    allocate(LWnet_leafsun(ncanopy))
     allocate(t_leafsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
     allocate(rs_leafsun(ncanopy))
     allocate(rb_leafsun(2-ih:i1+ih,2-jh:j1+jh,ncanopy))
@@ -540,7 +536,6 @@ contains
 
     deallocate(LWin_leafshad)
     deallocate(LWout_leafshad)
-    deallocate(LWnet_leafshad)
     deallocate(t_leafshad)
     deallocate(t_leafshad_old)
     deallocate(rs_leafshad)
@@ -550,7 +545,6 @@ contains
     deallocate(An_leafshad)
     deallocate(LWin_leafsun)
     deallocate(LWout_leafsun)
-    deallocate(LWnet_leafsun)
     deallocate(t_leafsun)
     deallocate(t_leafsun_old)
     deallocate(cfSL_old)
@@ -643,7 +637,6 @@ contains
         soil_albedo(1:2) = vis_albedo_surf(i,j)
         soil_albedo(3:4) = nir_albedo_surf(i,j)
 
-        !assume scattering/reflections properties of leaves is the same for PAR and SW, becauswe canopyrad_sw uses coefficients for PAR
         SWdirTOC = max(0.1,abs(swdir(i,j,ncanopy+1)))
         SWdifTOC = max(0.1,abs(swdif(i,j,ncanopy+1)))
 
@@ -659,6 +652,17 @@ contains
                            swdir_can(:ncanopy+1,:),swdif_can(:ncanopy+1,:),swu_can(:ncanopy+1,:),abssw_soil(:))    ! out for radiation
         end if
 
+        ! interpolate cfSL_h to full levels, needed later to compute total absorption per layer
+        sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon),1.e-10)
+        if (sinbeta>0.035) then ! daytime, same threshold as radpar
+          kdrbl    = 0.5 / sinbeta
+          do k_can=1,ncanopy
+            cfSL(k_can)   = ( cfSL_h(k_can+1) - cfSL_h(k_can)) / (kdrbl * lclump * padf(k_can) * dzf(k_can))! needed for absSWlayer
+          enddo
+        else
+          cfSL = 0.0
+        endif
+
         absleaf_shad_b(i,j,:,:) = temp_absleaf_shad_b(:,:)
 
         absSWleaf_shad(i,j,:) = sum(absleaf_shad_b(i,j,:,:), dim=2)
@@ -671,18 +675,12 @@ contains
         PARd_can(i,j,ncanopy+1) = (SWdirTOC + SWdifTOC) * weight_b(iband_par)
         PARu_can(i,j,1:ncanopy+1) = swu_can(1:ncanopy+1, iband_par)
 
+        do k_can=1,ncanopy
+            absSWleaf_allsun(i,j,k_can)   = sum(weight_g(:) *  absSWleaf_sun(k_can,1:nangle_gauss))
+            absPARleaf_allsun(i,j,k_can)   = sum(weight_g(:) *  absPARleaf_sun(k_can,1:nangle_gauss))
+        enddo
 
-        ! cfSL at full levels is calculated here, it is necessary later. analogous to fracSL in canopyrad_sw
-        sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon),1.e-10)
-        if (sinbeta>0.035) then ! daytime, same threshold as radpar
-          kdrbl    = lclump * 0.5 / sinbeta
-          do k_can=1,ncanopy
-            cfSL(k_can)   = lclump * exp(-kdrbl * paif(k_can)) ! needed for absSWlayer
-
-          enddo
-        else
-          cfSL = 0.0
-        endif
+        absSWlayer(i,j,:) = dzf(:ncanopy) * padf(:) * (cfSL(:) * absSWleaf_allsun(i,j,:) + (1-cfSL(:)) * absSWleaf_shad(i,j,:))
 
     end if
    !                  #############  LW  into leaf #################               !
@@ -724,7 +722,7 @@ contains
                       gcc_leafshad_old(i,j,k_can),ci_leafshad_old(i,j,k_can),rk3coef,                       & ! in
                       t_leafshad(i,j,k_can), gcc_leafshad(i,j,k_can), rb_leafshad(i,j,k_can),ci_leafshad(i,j,k_can),& ! out
                       sh_leafshad(i,j,k_can), le_leafshad(i,j,k_can), LWout_leafshad(i,j,k_can),An_leafshad(i,j,k_can))       ! out
-      LWnet_leafshad(k_can) = LWin_leafshad(i,j,k_can) - LWout_leafshad(i,j,k_can)
+
       if (lrelaxgc_can) then
         if (gccan_old_set .and. rk3step ==3) then
             gcc_leafshad_old(i,j,k_can) = gcc_leafshad(i,j,k_can)
@@ -745,16 +743,12 @@ contains
         write(*,*)'trying to do 3 sunny leaves in lcanopyeb, not available'
         stop
       else ! angle-dependent SW are averaged following 3 point gaussian procedure (Goudriaan and van Laar 1996)
-        absSWleaf_allsun(i,j,k_can)   = sum(weight_g *  absSWleaf_sun(k_can,1:nangle_gauss))
-        absPARleaf_allsun(i,j,k_can)   = sum(weight_g *  absPARleaf_sun(k_can,1:nangle_gauss))
         call leafeb_ags(absSWleaf_allsun(i,j,k_can), absPARleaf_allsun(i,j,k_can),LWin_leafsun(i,j,k_can), leaf_eps, transpiretype, lwidth, llength, & ! in
                         tmp0(i,j,k_can), humidairpa(k_can),qt0(i,j,k_can), windsp(k_can), presf(k_can),        & ! in
                         rhof(k_can), svm(i,j,k_can,indCO2), phitot(i,j),                                       & ! in
                         gcc_leafsun_old(i,j,k_can),ci_leafsun_old(i,j,k_can),rk3coef,                          & ! in
                         t_leafsun(i,j,k_can), gcc_leafsun(i,j,k_can), rb_leafsun(i,j,k_can),ci_leafsun(i,j,k_can),     & ! out
                         sh_leafsun(i,j,k_can), le_leafsun(i,j,k_can), LWout_leafsun(i,j,k_can),An_leafsun(i,j,k_can))            ! out
-        LWnet_leafsun(k_can) = LWin_leafsun(i,j,k_can) - LWout_leafsun(i,j,k_can)
-        absSWlayer(i,j,k_can) = dzf(k_can) * padf(k_can) * (cfSL(k_can) * absSWleaf_allsun(i,j,k_can) + (1-cfSL(k_can)) * absSWleaf_shad(i,j,k_can))
 
         if (lrelaxgc_can) then
           if (gccan_old_set .and. rk3step ==3) then
