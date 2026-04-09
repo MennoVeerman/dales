@@ -57,7 +57,7 @@ SAVE
   real :: dlwtop     = 74.               !< longwave radiative flux divergence at top of domain
   real :: dlwbot     = 0.                !< longwave radiative flux divergence near the surface
   real :: sw0        = 1368.22           !< Solar constant (in W/m2). SWD at TOA = sw0*cos(mu)
-                                         !< NOTE: when using delta-Eddington (iradiation=2) this represents the downwelling solar 
+                                         !< NOTE: when using delta-Eddington (iradiation=2) this represents the downwelling solar
                                          !        radiation at the top of the domain/cloud
 
   real :: gc         = 0.85              !< asymmetry factor of droplet scattering angle distribution
@@ -154,9 +154,9 @@ SAVE
 
   real(kind_rb),allocatable,dimension(:)   :: &
        o3, co2, ch4, n2o, o2, cfc11, cfc12, cfc22, ccl4   ! Profiles of trace gases
-  integer :: npatch_start,npatch_end
+  integer :: npatch,npatch_start,npatch_end
   integer :: nzrad                                        ! Number of levels in the patched radiation profiles
-  integer :: kradmax, krad1, krad2                        ! New variables (stephan), kradmax = nzrad-1, krad1=nzrad, krad2=nzrad+1 (like kmax, k1)
+  integer :: krad, krad1, kradmax, kradmax1, kradmax2     ! New variables (stephan), kradmax = nzrad-1, krad1=nzrad, krad2=nzrad+1 (like kmax, k1)
 
   ! background sounding
   integer, parameter :: nzsnd = 1000
@@ -185,7 +185,7 @@ SAVE
   real, allocatable :: tskin_rad (:,:) !<  tskin  at lower boundary for radiation (can be surface or canopy top)
   real, allocatable :: qskin_rad (:,:) !<  qskin  at lower boundary for radiation (can be surface or canopy top(not ready))
   real              :: sfc_emis = 0.95 !<  Spectrally constant surface emissivity
-  integer           :: kmin_rad = 1    !<  lowest level at which radiation tendencies are calculated. =ncanopy+1 if canopy is present.
+  integer           :: kmin = 1        !<  lowest level at which radiation tendencies are calculated. =ncanopy+1 if canopy is present.
   logical           :: radcanoffset = .false. !<lowest level at which radiation tendencies are calculated. =ncanopy+1 if canopy is present.
 
   real, allocatable :: SW_up_TOA(:,:), SW_dn_TOA(:,:), LW_up_TOA(:,:), LW_dn_TOA(:,:) !< Top of the atmosphere radiative fluxes

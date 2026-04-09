@@ -116,7 +116,7 @@ contains
     use modfields,    only : rhof, exnf,exnh, thl0,qt0,ql0,sv0
     use modsurfdata,  only : ps
     use modmicrodata, only : imicro, imicro_bulk, Nc_0,iqr
-    use modraddata,   only : thlprad, lwd,lwu,swd,swu,albedo_rad,kmin_rad
+    use modraddata,   only : thlprad, lwd,lwu,swd,swu,albedo_rad,kmin
       implicit none
     real :: thlpld,thlplu,thlpsd,thlpsu
     integer :: i,j,k
@@ -174,7 +174,7 @@ contains
 !      swu(:,:,1) = swu(:,:,1)+0.3333333*(swu(:,:,1)-swu(:,:,2))
 
 !Add up thl tendency
-      do k=kmin_rad,kmax
+      do k=kmin,kmax
         do j=2,j1
           do i=2,i1
             thlpld          = -(lwd(i,j,k+1)-lwd(i,j,k))
@@ -415,7 +415,7 @@ contains
     end if
 
   end subroutine d4stream_setup
-  
+
   subroutine d4stream_tb_setup(k1,npts,nv1,nv,zp)
     use modtestbed, only : tbrad_p, tbrad_t, tbrad_ql, tbrad_qv, tbrad_o3, testbed_getinttime, nknudge
     implicit none
@@ -706,7 +706,7 @@ contains
     else
        y = exp ( - ( t1 - t0 ) / (u0+epsilon(u0)))
        fw = 0.5 * f0
-       do i = 1, 4          
+       do i = 1, 4
           jj = 5 - i
           z1(i) = fw / ( 1.0 + u(jj) / (u0+epsilon(u0)) )
           zz(i,1) = z1(i)

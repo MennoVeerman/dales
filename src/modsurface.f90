@@ -75,6 +75,7 @@ contains
     use modraddata, only : iradiation,rad_shortw,irad_par,irad_user,irad_rrtmg,albedo_rad
     use modmpi,     only : myid, comm3d, mpierr, my_real, mpi_logical, mpi_integer
     use modcanopy, only : lcanopyeb
+    use modraddata
 
     implicit none
 
@@ -84,7 +85,7 @@ contains
     namelist/NAMSURFACE/ & !< Soil related variables
       isurf,tsoilav, tsoildeepav, phiwav, rootfav, &
       ! Land surface related variables
-      lmostlocal, lsmoothflux, lneutral, z0mav, z0hav, rsisurf2, Cskinav, lambdaskinav, albedoav_surf, vis_albedoav_surf, nir_albedoav_surf, Qnetav, cvegav, Wlav, &
+      lmostlocal, lsmoothflux, lneutral, z0mav, z0hav, rsisurf2, Cskinav, lambdaskinav, albedoav_surf, Qnetav, cvegav, Wlav, &
       ! Jarvis-Steward related variables
       rsminav, rssoilminav, LAI_surfav, gDav, &
       ! Prescribed values for isurf 2, 3, 4
@@ -134,8 +135,6 @@ contains
     call MPI_BCAST(Cskinav      , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(lambdaskinav , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(albedoav_surf, 1, MY_REAL, 0, comm3d, mpierr)
-    call MPI_BCAST(nir_albedoav_surf, 1, MY_REAL, 0, comm3d, mpierr)
-    call MPI_BCAST(vis_albedoav_surf, 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(Qnetav       , 1, MY_REAL, 0, comm3d, mpierr)
 
     call MPI_BCAST(rsminav      , 1, MY_REAL, 0, comm3d, mpierr)
@@ -549,17 +548,6 @@ contains
 
     endif
 
-
-    if(iradiation == 4) then
-      if(rad_shortw .and. (albedoav_surf == -1 .and. ( (vis_albedoav_surf == -1) .or. (nir_albedoav_surf == -1) ) ) ) then
-        stop "NAMSURFACE: albedoav_surf is not set, vis_albedoav_surf and nir_albedoav_surf also not set"
-       end if
-    else
-      if(rad_shortw .and. (albedoav_surf == -1 )) then
-        stop "NAMSURFACE: albedoav_surf is not set"
-       end if
-    end if
-
     if(isurf == 1) then
       if(tsoilav(1) == -1 .or. tsoilav(2) == -1 .or. tsoilav(3) == -1 .or. tsoilav(4) == -1) then
         stop "NAMSURFACE: tsoil is not set"
@@ -579,9 +567,9 @@ contains
       if(lambdaskinav == -1) then
         stop "NAMSURFACE: lambdaskinav is not set"
       end if
-!      if(albedoav_surf == -1) then
-!        stop "NAMSURFACE: albedoav_surf is not set"
-!      end if
+      if(albedoav_surf == -1) then
+        stop "NAMSURFACE: albedoav_surf is not set"
+      end if
       if(Qnetav == -1) then
         stop "NAMSURFACE: Qnetav is not set"
       end if
@@ -624,8 +612,6 @@ contains
     end if
 
     allocate(albedo_surf(i2,j2))
-    allocate(vis_albedo_surf(i2,j2))
-    allocate(nir_albedo_surf(i2,j2))
     allocate(z0m(i2,j2))
     allocate(z0h(i2,j2))
     allocate(obl(i2,j2))
@@ -648,19 +634,7 @@ contains
       lwuavn =  0.
     end if
 
-    if (iradiation == 4 .and. .not. (vis_albedoav_surf == -1 .or. nir_albedoav_surf == -1)) then
-        vis_albedo_surf = vis_albedoav_surf
-        nir_albedo_surf = nir_albedoav_surf
-        if (albedoav_surf == -1) then
-            albedo_surf = (vis_albedoav_surf + nir_albedoav_surf)/2
-        else
-            albedo_surf = albedoav_surf
-        end if
-    else
-        albedo_surf     = albedoav_surf
-        vis_albedo_surf = albedoav_surf
-        nir_albedo_surf = albedoav_surf
-    endif
+    albedo_surf     = albedoav_surf
 
     if(lhetero) then
       do j=1,j2
@@ -715,17 +689,17 @@ contains
         allocate(PARleaf_shad(nz_gauss))
         allocate(PARleaf_allsun(nz_gauss))
         allocate(PARleaf_sun(nz_gauss,nangle_gauss))
-        allocate(swleaf_shad(nz_gauss,nband_can))
-        allocate(swleaf_allsun(nz_gauss,nband_can))
-        allocate(swleaf_sun(nz_gauss,nangle_gauss,nband_can))
+        allocate(swleaf_shad(nz_gauss,n_bands_sw))
+        allocate(swleaf_allsun(nz_gauss,n_bands_sw))
+        allocate(swleaf_sun(nz_gauss,nangle_gauss,n_bands_sw))
         allocate(fSL(nz_gauss))
         allocate(gshad_old(2:i1,2:j1,nz_gauss))
-        allocate(albdir_lsplit(2:i1,2:j1,nband_can))
-        allocate(albdif_lsplit(2:i1,2:j1,nband_can))
-        allocate(albswd_lsplit(2:i1,2:j1,nband_can))
-        allocate(swdir_lsplit(2:i1,2:j1,nz_gauss,nband_can))
-        allocate(swdif_lsplit(2:i1,2:j1,nz_gauss,nband_can))
-        allocate(swu_lsplit(2:i1,2:j1,nz_gauss,nband_can))
+        allocate(albdir_lsplit(2:i1,2:j1,n_bands_sw))
+        allocate(albdif_lsplit(2:i1,2:j1,n_bands_sw))
+        allocate(albswd_lsplit(2:i1,2:j1,n_bands_sw))
+        allocate(swdir_lsplit(2:i1,2:j1,nz_gauss,n_bands_sw))
+        allocate(swdif_lsplit(2:i1,2:j1,nz_gauss,n_bands_sw))
+        allocate(swu_lsplit(2:i1,2:j1,nz_gauss,n_bands_sw))
         allocate(PARdir_lsplit(nz_gauss))
         allocate(PARdif_lsplit(nz_gauss))
         allocate(PARu_lsplit  (nz_gauss))
@@ -1691,7 +1665,7 @@ contains
     use modcanopy, only : canopyeb,lcanopyeb,tleaf_old_set,cican_old_set,gccan_old_set,lrelaxgc_can,lrelaxci_can
 
     real     :: f1, f2, f3, f4 ! Correction functions for Jarvis-Stewart
-    integer  :: i, j, k, itg
+    integer  :: i, j, k, itg, ib
     integer  :: patchx, patchy
     real     :: rk3coef,thlsl
 
@@ -1710,10 +1684,10 @@ contains
     real     :: Fleafsun(nangle_gauss),gleafsun(nangle_gauss)
     real     :: Fnet(nz_gauss), gnet(nz_gauss)
     integer  :: angle
-    real     :: absPAR_ground(nband_can)! not used, but needed due to function definition
+    real     :: absPAR_ground(n_bands_sw)! not used, but needed due to function definition
     ! vars needed for canopyeb
     real     :: fSL_bot, rs_leafshad_bot,rs_leafsun_bot,Fco2_can_bot
-    real     :: abssw_ground(nband_can) ! absorbed SW radiation by vegetated ground, only used if lcanopyeb
+    real     :: abssw_ground(n_bands_sw) ! absorbed SW radiation by vegetated ground, only used if lcanopyeb
 
     real     :: lthls_patch(xpatches,ypatches)
     integer  :: Npatch(xpatches,ypatches), SNpatch(xpatches,ypatches)
@@ -1896,16 +1870,28 @@ contains
           if (lsplitleaf) then
             swdir_TOV = max(0.1,abs(swdir(i,j,1)))
             swdif_TOV = max(0.1,abs(swdif(i,j,1)))
-            call canopyrad_sw(nz_gauss,LAI_surf(i,j),LAI_surf(i,j)*LAI_g,swdir_TOV,swdif_TOV,albedo_surf(i,j),1.0,surfrad_meth,& ! in!
+            call canopyrad_sw_GvL94(nz_gauss,LAI_surf(i,j),LAI_surf(i,j)*LAI_g,swdir_TOV,swdif_TOV,1.0,& ! in!
                  swleaf_shad,swleaf_sun,fSL,&
                  albdir_lsplit(i,j,:),albdif_lsplit(i,j,:),albswd_lsplit(i,j,:),&
                  swdir_lsplit(i,j,:nz_gauss,:),swdif_lsplit(i,j,:nz_gauss,:),swu_lsplit(i,j,:nz_gauss,:),absPAR_ground(:))! could be coupled to radiation
             !previously we assumed SW = 2.0*PAR, now we assume SW = 1/0.44*PAR
-            PARdir_lsplit(:nz_gauss) = swdir_lsplit(i,j,:nz_gauss, iband_par)
-            PARdif_lsplit(:nz_gauss) = swdif_lsplit(i,j,:nz_gauss, iband_par)
-            PARu_lsplit(:nz_gauss) = swu_lsplit  (i,j,:nz_gauss, iband_par)
-            PARleaf_shad(:nz_gauss) = swleaf_shad(:nz_gauss,iband_par)
-            PARleaf_sun(:nz_gauss,:) = swleaf_sun(:nz_gauss,:,iband_par)
+            PARdir_lsplit(:nz_gauss) = 0.
+            PARdif_lsplit(:nz_gauss) = 0.
+            PARu_lsplit(:nz_gauss) = 0.
+            PARleaf_shad(:nz_gauss) = 0.
+            PARleaf_sun(:nz_gauss,:) = 0.
+
+            do ib = 1, n_bands_sw
+                if (canrad_bands_sw(ib)%spectral_type == 2) then
+                    PARdir_lsplit(:nz_gauss) = PARdir_lsplit(:nz_gauss) + swdir_lsplit(i,j,:nz_gauss, ib)
+                    PARdif_lsplit(:nz_gauss) = PARdif_lsplit(:nz_gauss) + swdif_lsplit(i,j,:nz_gauss, ib)
+                    PARu_lsplit(:nz_gauss)  = PARu_lsplit(:nz_gauss)  + swu_lsplit  (i,j,:nz_gauss, ib)
+                    PARleaf_shad(:nz_gauss) = PARleaf_shad(:nz_gauss) + swleaf_shad(:nz_gauss, ib)
+                    PARleaf_sun(:nz_gauss,:) = PARleaf_sun(:nz_gauss,:) + swleaf_sun(:nz_gauss,:, ib)
+                end if
+            end do
+
+
 
             do itg = 1,nz_gauss
               !shaded
@@ -1975,7 +1961,14 @@ contains
              ! and for understory vegetation:
 
             !upscaling following Ronda et al
-            PAR       = max(0.1, abssw_ground(iband_par))
+            PAR       = 0.
+            do ib = 1, n_bands_sw
+                if (canrad_bands_sw(ib)%spectral_type == 2) then
+                    PAR = PAR + abssw_ground(ib)
+                end if
+            end do
+            PAR = max(0.1, PAR)
+
             call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j),& ! in
                        phitot(i,j),PAR, & ! in
                        lrelaxgc_surf,gcsurf_old_set,kgc_surf,gc_old(i,j),rk3coef,   & ! in

@@ -19,9 +19,9 @@ contains
     use shr_orb_mod,   only : shr_orb_params
     use rrtmg_sw_init, only : rrtmg_sw_ini
     use rrtmg_sw_rad,  only : rrtmg_sw
+    use modcanopy,     only : lcanopy, ncanopy
     implicit none
 
-    integer                :: npatch    ! Sounding levels above domain
     integer                :: i,j,k,ierr(3)
     logical                :: sunUp
     real(SHR_KIND_R4),save ::  eccen, & ! Earth's eccentricity factor (unitless) (typically 0 to 0.1)
@@ -55,10 +55,13 @@ contains
         stop 'ERROR: No valid radiation sounding found (modradrrtmg.f90)'
       end if
 
-      nzrad  = kmax + npatch    !old notation
-      kradmax = nzrad   !a la kmax, k1
-      krad1   = nzrad + 1
-      krad2   = nzrad + 2
+      krad = kmax - (kmin - 1)
+      krad1 = krad + 1
+      kradmax = krad + npatch   !a la kmax, k1
+      kradmax1   = kradmax + 1
+      kradmax2   = kradmax + 2
+
+      nzrad = kradmax
 
       isReadSounding = .true.
     end if
@@ -68,25 +71,25 @@ contains
     !  nzrad = kmax + npatch, nzrad+1
     !
     if(.not.isAllocated_RadInputsOutputs) then
-      allocate(layerP      (imax,krad1),       &
-               layerT      (imax,krad1),       &
-               h2ovmr      (imax,krad1),       &
-               o3vmr       (imax,krad1),       &
-               co2vmr      (imax,krad1),       &
-               ch4vmr      (imax,krad1),       &
-               n2ovmr      (imax,krad1),       &
-               o2vmr       (imax,krad1),       &
-               cfc11vmr    (imax,krad1),       &
-               cfc12vmr    (imax,krad1),       &
-               cfc22vmr    (imax,krad1),       &
-               ccl4vmr     (imax,krad1),       &
-               cloudFrac   (imax,krad1),       &
-               liquidRe    (imax,krad1),       &
-               iceRe       (imax,krad1),       &
+      allocate(layerP      (imax,kradmax1),       &
+               layerT      (imax,kradmax1),       &
+               h2ovmr      (imax,kradmax1),       &
+               o3vmr       (imax,kradmax1),       &
+               co2vmr      (imax,kradmax1),       &
+               ch4vmr      (imax,kradmax1),       &
+               n2ovmr      (imax,kradmax1),       &
+               o2vmr       (imax,kradmax1),       &
+               cfc11vmr    (imax,kradmax1),       &
+               cfc12vmr    (imax,kradmax1),       &
+               cfc22vmr    (imax,kradmax1),       &
+               ccl4vmr     (imax,kradmax1),       &
+               cloudFrac   (imax,kradmax1),       &
+               liquidRe    (imax,kradmax1),       &
+               iceRe       (imax,kradmax1),       &
 !
-               LWP_slice   (imax,krad1),       &
-               IWP_slice   (imax,krad1),       &
-               presh_input      (krad1),       &
+               LWP_slice   (imax,kradmax1),       &
+               IWP_slice   (imax,kradmax1),       &
+               presh_input      (kradmax1),       &
                  STAT=ierr(1))
 
       allocate(tabs_slice  (imax,kradmax),         &
@@ -97,23 +100,23 @@ contains
                tg_slice    (imax),               &
                presf_input      (kradmax),         &
 !
-               interfaceP     (imax,krad2),    &
-               interfaceT     (imax,krad2),    &
+               interfaceP     (imax,kradmax2),    &
+               interfaceT     (imax,kradmax2),    &
 !
-               lwUp_slice     (imax,krad2),    &
-               lwDown_slice   (imax,krad2),    &
-               lwUpCS_slice   (imax,krad2),    &
-               lwDownCS_slice (imax,krad2),    &
-               swUp_slice     (imax,krad2),    &
-               swDown_slice   (imax,krad2),    &
-               swDownDir_slice(imax,krad2),    &
-               swDownDif_slice(imax,krad2),    &
-               swUpCS_slice   (imax,krad2),    &
-               swDownCS_slice (imax,krad2),    &
-               lwHR_slice     (imax,krad2),    &
-               lwHRCS_slice   (imax,krad2),    &
-               swHR_slice     (imax,krad2),    &
-               swHRCS_slice   (imax,krad2),    &
+               lwUp_slice     (imax,kradmax2),    &
+               lwDown_slice   (imax,kradmax2),    &
+               lwUpCS_slice   (imax,kradmax2),    &
+               lwDownCS_slice (imax,kradmax2),    &
+               swUp_slice     (imax,kradmax2),    &
+               swDown_slice   (imax,kradmax2),    &
+               swDownDir_slice(imax,kradmax2),    &
+               swDownDif_slice(imax,kradmax2),    &
+               swUpCS_slice   (imax,kradmax2),    &
+               swDownCS_slice (imax,kradmax2),    &
+               lwHR_slice     (imax,kradmax2),    &
+               lwHRCS_slice   (imax,kradmax2),    &
+               swHR_slice     (imax,kradmax2),    &
+               swHRCS_slice   (imax,kradmax2),    &
 !
                  STAT=ierr(2))
       allocate(solarZenithAngleCos(imax), asdir(imax), asdif(imax), aldir(imax),       &
@@ -146,14 +149,14 @@ contains
 
     if(.not.isReadTraceProfiles) then
       ! Patch sounding profile pressures above domain pressures (convert to hPa!)
-      presf_input(1:kmax)   = presf(1:kmax)  /100.
-      presh_input(1:k1)     = presh(1:k1)/100.
+      presf_input(1:krad)   = presf(kmin:kmax)  /100.
+      presh_input(1:krad1)     = presh(kmin:k1)/100.
 
       if(npatch>0) then
-        presf_input(k1  :kradmax) = psnd(npatch_start:npatch_end)
-        presh_input(k1+1:kradmax) = 0.5*( psnd(npatch_start:npatch_end-1) &
+        presf_input(krad1  :kradmax) = psnd(npatch_start:npatch_end)
+        presh_input(krad1+1:kradmax) = 0.5*( psnd(npatch_start:npatch_end-1) &
                                       + psnd(npatch_start+1:npatch_end) )
-        presh_input(krad1)      = max( 0.5*psnd(npatch_end),            &
+        presh_input(kradmax1)      = max( 0.5*psnd(npatch_end),            &
                                       1.5*psnd(npatch_end) - 0.5*psnd(npatch_end-1) )
       end if
       call readTraceProfs
@@ -180,7 +183,7 @@ contains
    ! Loop over the slices in the model, in the y direction
     do j=2,j1
       call setupSlicesFromProfiles &
-           ( j, npatch_start, &                                           !input
+           ( j, npatch, npatch_start, &                                   !input
            LWP_slice, IWP_slice, cloudFrac, liquidRe, iceRe )             !output
 
       if (rad_longw) then
@@ -197,8 +200,8 @@ contains
       end if
 
       if (rad_longw) then !IF added not to propagate LW effects of canopy LW to levels above  #XPB
-        lwu(2:i1,j,1:k1) =  lwUp_slice  (1:imax,1:k1)
-        lwd(2:i1,j,1:k1) = -lwDown_slice(1:imax,1:k1)
+        lwu(2:i1,j,kmin:k1) =  lwUp_slice  (1:imax,1:krad1)
+        lwd(2:i1,j,kmin:k1) = -lwDown_slice(1:imax,1:krad1)
       else !(.not. rad_longw) then !we get LW only at surface identically to how it is done in sunray subroutine
         do i=2,i1
           lwd(i,j,1) =  -0.8 * boltz * thl0(i,j,1) ** 4.
@@ -207,31 +210,31 @@ contains
         end do
       end if
 
-      swu(2:i1,j,1:k1) =  swUp_slice  (1:imax,1:k1)
-      swd(2:i1,j,1:k1) = -swDown_slice(1:imax,1:k1)
+      swu(2:i1,j,kmin:k1) =  swUp_slice  (1:imax,1:krad1)
+      swd(2:i1,j,kmin:k1) = -swDown_slice(1:imax,1:krad1)
 
-      swdir(2:i1,j,1:k1) = -swDownDir_slice(1:imax,1:k1)
-      swdif(2:i1,j,1:k1) = -swDownDif_slice(1:imax,1:k1)
-      lwc  (2:i1,j,1:k1) =  LWP_slice      (1:imax,1:k1)
+      swdir(2:i1,j,kmin:k1) = -swDownDir_slice(1:imax,1:krad1)
+      swdif(2:i1,j,kmin:k1) = -swDownDif_slice(1:imax,1:krad1)
+      lwc  (2:i1,j,kmin:k1) =  LWP_slice      (1:imax,1:krad1)
 
-      lwuca(2:i1,j,1:k1) =  lwUpCS_slice  (1:imax,1:k1)
-      lwdca(2:i1,j,1:k1) = -lwDownCS_slice(1:imax,1:k1)
-      swuca(2:i1,j,1:k1) =  swUpCS_slice  (1:imax,1:k1)
-      swdca(2:i1,j,1:k1) = -swDownCS_slice(1:imax,1:k1)
+      lwuca(2:i1,j,kmin:k1) =  lwUpCS_slice  (1:imax,1:krad1)
+      lwdca(2:i1,j,kmin:k1) = -lwDownCS_slice(1:imax,1:krad1)
+      swuca(2:i1,j,kmin:k1) =  swUpCS_slice  (1:imax,1:krad1)
+      swdca(2:i1,j,kmin:k1) = -swDownCS_slice(1:imax,1:krad1)
 
-      SW_up_TOA (2:i1,j) =  swUp_slice  (1:imax,krad2)
-      SW_dn_TOA (2:i1,j) = -swDown_slice(1:imax,krad2)
-      LW_up_TOA (2:i1,j) =  lwUp_slice  (1:imax,krad2)
-      LW_dn_TOA (2:i1,j) = -lwDown_slice(1:imax,krad2)
+      SW_up_TOA (2:i1,j) =  swUp_slice  (1:imax,kradmax2)
+      SW_dn_TOA (2:i1,j) = -swDown_slice(1:imax,kradmax2)
+      LW_up_TOA (2:i1,j) =  lwUp_slice  (1:imax,kradmax2)
+      LW_dn_TOA (2:i1,j) = -lwDown_slice(1:imax,kradmax2)
 
-      SW_up_ca_TOA (2:i1,j) =  swUpCS_slice  (1:imax,krad2)
-      SW_dn_ca_TOA (2:i1,j) = -swDownCS_slice(1:imax,krad2)
-      LW_up_ca_TOA (2:i1,j) =  lwUpCS_slice  (1:imax,krad2)
-      LW_dn_ca_TOA (2:i1,j) = -lwDownCS_slice(1:imax,krad2)
+      SW_up_ca_TOA (2:i1,j) =  swUpCS_slice  (1:imax,kradmax2)
+      SW_dn_ca_TOA (2:i1,j) = -swDownCS_slice(1:imax,kradmax2)
+      LW_up_ca_TOA (2:i1,j) =  lwUpCS_slice  (1:imax,kradmax2)
+      LW_dn_ca_TOA (2:i1,j) = -lwDownCS_slice(1:imax,kradmax2)
 
     end do ! Large loop over j=2,j1
 
-    do k=kmin_rad,kmax ! starts at kmin_rad so that no tendency is considered below kmin_rad if canopyeb is present
+    do k=kmin,kmax ! starts at kmin_rad so that no tendency is considered below kmin_rad if canopyeb is present
       do j=2,j1
         do i=2,i1
           thlpld          = -(lwd(i,j,k+1)-lwd(i,j,k))
@@ -380,7 +383,6 @@ contains
     end if
 
   end subroutine readSounding
-
 ! ==============================================================================;
 ! ==============================================================================;
 
@@ -402,11 +404,11 @@ contains
 !    real    :: godp
     real(kind=kind_rb),allocatable,dimension(:)    :: pMLS  ! Sounding pressure
     real(kind=kind_rb),allocatable,dimension(:,:)  :: trace, trace_in
-    real(kind=kind_rb) :: tmppresf(krad1),           &
-                          tmppresh(krad2),           &
-                          tmpTrace(krad1),           &    ! Temporary trace gas profile
-                          trpath(krad2,nTraceGases), &
-                          godp(krad1)
+    real(kind=kind_rb) :: tmppresf(kradmax1),           &
+                          tmppresh(kradmax2),           &
+                          tmpTrace(kradmax1),           &    ! Temporary trace gas profile
+                          trpath(kradmax2,nTraceGases), &
+                          godp(kradmax1)
 
     character(len=nf90_max_name) :: tmpName
     character(len=5),dimension(nTraceGases),parameter :: traceGasNameOrder = (/ &
@@ -416,10 +418,10 @@ contains
       ! allocate trace gas arrays.  These have an extra level for the
       !   mean mass-weighted trace gas concentration in the overlying atmosphere.
       !
-!      nz_tracegases = krad1  ! add one level to compute trace gas levels to TOA
-      allocate(o3(krad1), co2(krad1), ch4(krad1), &
-           n2o(krad1), o2(krad1), cfc11(krad1), &
-           cfc12(krad1), cfc22(krad1), ccl4(krad1), &
+!      nz_tracegases = kradmax1  ! add one level to compute trace gas levels to TOA
+      allocate(o3(kradmax1), co2(kradmax1), ch4(kradmax1), &
+           n2o(kradmax1), o2(kradmax1), cfc11(kradmax1), &
+           cfc12(kradmax1), cfc22(kradmax1), ccl4(kradmax1), &
            STAT=ierr)
       if(ierr.ne.0) then
         write(*,*) 'ERROR: could not allocate trace gas arrays in tracesini'
@@ -473,16 +475,16 @@ contains
 
     ! An extra layer is added to the existing pressure profiles (for better results?)
     tmppresf(1:kradmax)   = presf_input(1:kradmax)
-    tmppresh(1:krad1) = presh_input(1:krad1)
+    tmppresh(1:kradmax1) = presh_input(1:kradmax1)
 
-    tmppresf(krad1)   = 0.5*presh_input(krad1)
-    tmppresh(krad2)   = min(1.e-4_kind_rb,0.25*tmppresf(krad1))
+    tmppresf(kradmax1)   = 0.5*presh_input(kradmax1)
+    tmppresh(kradmax2)   = min(1.e-4_kind_rb,0.25*tmppresf(kradmax1))
 
     ! trace gas paths at surface are zero.
     trpath(1,:) = 0.
 
     ! Loop over 2nd lowest level to top of atmosphere (including added level)
-    do k = 2,krad2
+    do k = 2,kradmax2
       ! start with trace path at interface below.
       trpath(k,:) = trpath(k-1,:)
 
@@ -525,8 +527,8 @@ contains
 
     do m = 1,nTraceGases
       ! Faster than original loop ??
-      godp(:)  = grav / (tmppresh(1:krad1) - tmppresh(2:krad2))
-      tmpTrace = ( trpath(2:krad2,m) - trpath(1:krad1,m) ) * godp(:)
+      godp(:)  = grav / (tmppresh(1:kradmax1) - tmppresh(2:kradmax2))
+      tmpTrace = ( trpath(2:kradmax2,m) - trpath(1:kradmax1,m) ) * godp(:)
 
 !      do k = 1,nzm+1
 !        godp = ggr/(tmppresi(k) - tmppresi(k+1))
@@ -558,7 +560,7 @@ contains
       write(*,*) 'RRTMG rrtmg_lw.nc trace gas profile: number of levels=',np
       write(*,*) 'gas traces vertical profiles (ppmv *10^-6):'
       write(*,*) 'p, hPa', ('       ',traceGasNameOrder(m),m=1,nTraceGases)
-      do k=1,krad1
+      do k=1,kradmax1
         write(*,*) tmppresf(k),o3(k),co2(k),ch4(k),n2o(k),o2(k), &
              cfc11(k),cfc12(k), cfc22(k),ccl4(k)
       end do
@@ -574,7 +576,7 @@ contains
 ! ==============================================================================;
 ! ==============================================================================;
 
-  subroutine setupSlicesFromProfiles(j,npatch_start, &
+  subroutine setupSlicesFromProfiles(j,npatch,npatch_start, &
            LWP_slice,IWP_slice,cloudFrac,liquidRe,iceRe)
   !=============================================================================!
   ! This subroutine sets up 2D (xz) slices of different variables:              !
@@ -594,19 +596,20 @@ contains
       use modraddata, only: tskin_rad
       use modmicrodata, only : Nc_0,sig_g
       use modmpi, only: myid
+      use modcanopy, only: canradactive, lcanopyeb, tskin_can
 
       implicit none
 
-      integer,intent(in) :: j,npatch_start
-      real(KIND=kind_rb),intent(out) ::    LWP_slice(imax,krad1), &
-                                           IWP_slice(imax,krad1), &
-                                           cloudFrac(imax,krad1), &
-                                           liquidRe (imax,krad1), &
-                                           iceRe    (imax,krad1)
-      integer :: i,k,ksounding,im
+      integer,intent(in) :: j,npatch,npatch_start
+      real(KIND=kind_rb),intent(out) ::    LWP_slice(imax,kradmax1), &
+                                           IWP_slice(imax,kradmax1), &
+                                           cloudFrac(imax,kradmax1), &
+                                           liquidRe (imax,kradmax1), &
+                                           iceRe    (imax,kradmax1)
+      integer :: i,k,k_slice,k_off, ksounding,im
       !real (KIND=kind_rb) :: sst
       real (KIND=kind_rb) :: exners
-      real(KIND=kind_rb) :: layerMass(imax,krad1)
+      real(KIND=kind_rb) :: layerMass(imax,kradmax1)
       !real(KIND=kind_rb),dimension(imax,kmax)     :: tabs         ! Absolute temperature
       real(KIND=kind_rb),dimension(imax,jmax)     :: sstxy        ! sea surface temperature
       real   (SHR_KIND_R4), parameter :: pi = 3.14159265358979
@@ -622,9 +625,10 @@ contains
       exners = (ps/pref0) ** (rd/cp)
 
       do i=2,i1
-      do k=1,kmax
+      do k=kmin,kmax
           im = i-1
-          tabs_slice(im,k) = thl0(i,j,k) * exnf(k) &
+          k_slice = k - kmin + 1
+          tabs_slice(im,k_slice) = thl0(i,j,k) * exnf(k) &
                           + (rlv / cp) * ql0(i,j,k)
       enddo
       enddo
@@ -636,30 +640,36 @@ contains
         im=i-1
 
         !  tg_slice  (im)   = sst
-        tg_slice  (im)   = tskin_rad(i,j) * exners  ! Note: tskin = thlskin...
+        if (lcanopyeb .and. canradactive) then
+            tg_slice (im) = tskin_can(i,j)
+        else
+            tg_slice  (im) = tskin_rad(i,j) * exners  ! Note: tskin = thlskin...
+        endif
 
-        do k=1,kmax
-          qv_slice  (im,k) = max(qt0(i,j,k) - ql0(i,j,k),1e-18) !avoid RRTMG reading negative initial values
-          qcl_slice (im,k) = ql0(i,j,k)
-          qci_slice (im,k) = 0.
-          o3_slice  (im,k) = o3snd(npatch_start) ! o3 constant below domain top (if usero3!)
+        do k=kmin,kmax
+          k_slice = k - kmin + 1
+          qv_slice  (im,k_slice) = max(qt0(i,j,k) - ql0(i,j,k),1e-18) !avoid RRTMG reading negative initial values
+          qcl_slice (im,k_slice) = ql0(i,j,k)
+          qci_slice (im,k_slice) = 0.
+          o3_slice  (im,k_slice) = o3snd(npatch_start) ! o3 constant below domain top (if usero3!)
 
-          h2ovmr    (im,k) = mwdry/mwh2o * qv_slice(im, k)
-!         h2ovmr    (im,k) = mwdry/mwh2o * (qv_slice(im,k)/(1-qv_slice(im,k)))
-          layerT    (im,k) = tabs_slice(im,k)
-          layerP    (im,k) = presf_input(k)
+          h2ovmr    (im,k_slice) = mwdry/mwh2o * qv_slice(im, k_slice)
+!         h2ovmr    (im,k_slice) = mwdry/mwh2o * (qv_slice(im,k)/(1-qv_slice(im,k)))
+          layerT    (im,k_slice) = tabs_slice(im,k_slice)
+          layerP    (im,k_slice) = presf_input(k_slice)
         enddo
       enddo
 
      ! Patch sounding on top (no qcl or qci above domain; hard coded)
       do i=1,imax
       ksounding=npatch_start
-      do k=kmax+1,kradmax
-         tabs_slice(i,k) =  tsnd(ksounding)
-         qv_slice  (i,k) =  qsnd(ksounding)
-         qcl_slice (i,k) = 0.
-         qci_slice (i,k) = 0.
-         ksounding=ksounding+1
+      do k=1,npatch
+         k_slice = k + krad
+         tabs_slice(i,k_slice) =  tsnd(ksounding)
+         qv_slice  (i,k_slice) =  qsnd(ksounding)
+         qcl_slice (i,k_slice) = 0.
+         qci_slice (i,k_slice) = 0.
+         ksounding = ksounding + 1
       enddo
       enddo
 
@@ -667,25 +677,25 @@ contains
       if (usero3) then
         do i=1,imax
         ksounding=npatch_start
-        do k=kmax+1,kradmax
-           o3_slice(i,k) = o3snd(ksounding)
+        do k=1,npatch
+           k_slice = k + krad
+           o3_slice(i,k_slice) = o3snd(ksounding)
            ksounding=ksounding+1
         enddo
         do k=1,kradmax
           o3vmr  (i, k)   = mwdry/mwo3 * o3_slice(i, k)
         enddo
-        o3vmr  (i, krad1)   = o3vmr(i,kradmax)
+        o3vmr  (i, kradmax1)   = o3vmr(i,kradmax)
         enddo
       else
         do i=1,imax
-        do k=1,krad1
+        do k=1,kradmax1
             o3vmr   (i, k) = o3(k)
         enddo
         enddo
       end if
-
       do i=1,imax
-        do k=kmax+1,kradmax
+        do k=krad+1,kradmax
 
            !h2ovmr  (i, k)    = mwdry/mwh2o * (qv_slice(i,k)/(1-qv_slice(i,k)))
            h2ovmr  (i, k)    = mwdry/mwh2o * qv_slice(i,k)
@@ -693,14 +703,14 @@ contains
            layerT(i,k)       = tabs_slice(i,k)
         enddo
         ! Properly set boundary conditions
-!        h2ovmr  (i, krad1)   = mwdry/mwh2o * qv_slice(i,kradmax)
-        h2ovmr  (i, krad1)   = h2ovmr(i,kradmax)
-        layerP  (i, krad1)   = 0.5*presh_input(krad1)
-        layerT  (i, krad1)   = 2.*tabs_slice(i, kradmax) - tabs_slice(i, kradmax-1)
+!        h2ovmr  (i, kradmax1)   = mwdry/mwh2o * qv_slice(i,kradmax)
+        h2ovmr  (i, kradmax1)   = h2ovmr(i,kradmax)
+        layerP  (i, kradmax1)   = 0.5*presh_input(kradmax1)
+        layerT  (i, kradmax1)   = 2.*tabs_slice(i, kradmax) - tabs_slice(i, kradmax-1)
       enddo
 
       do i=1,imax
-        do k=1,krad1
+        do k=1,kradmax1
           co2vmr  (i, k) = co2(k)
           ch4vmr  (i, k) = ch4(k)
           n2ovmr  (i, k) = n2o(k)
@@ -710,14 +720,15 @@ contains
           cfc22vmr(i, k) = cfc22(k)
           ccl4vmr (i, k) = ccl4(k)
 
-          interfaceP(i,k ) =   presh_input(k)
+          interfaceP(i,k) =   presh_input(k)
         enddo
 
-        interfaceP(i, krad2)  = min( 1.e-4_kind_rb , 0.25*layerP(1,krad1) )
-        do k=2,krad1
+        interfaceP(i, kradmax2) = min( 1.e-4_kind_rb , 0.25*layerP(1,kradmax1) )
+
+        do k=2,kradmax1
            interfaceT(i, k) = (layerT(i,k-1) + layerT(i, k)) / 2.
         enddo
-        interfaceT(i, krad2) = 2.*layerT(i, krad1) - interfaceT(i, krad1)
+        interfaceT(i, kradmax2) = 2.*layerT(i, kradmax1) - interfaceT(i, kradmax1)
         interfaceT(i, 1)  = tg_slice(i)
       enddo
 
@@ -727,9 +738,9 @@ contains
           LWP_slice(i,k) = qcl_slice(i,k)*layerMass(i,k)*1e3
           IWP_slice(i,k) = qci_slice(i,k)*layerMass(i,k)*1e3
         enddo
-        layerMass(i,krad1) = 100.*( interfaceP(i,krad1) - interfaceP(i,krad2) ) / grav
-        LWP_slice(i,krad1) = 0.
-        IWP_slice(i,krad1) = 0.
+        layerMass(i,kradmax1) = 100.*( interfaceP(i,kradmax1) - interfaceP(i,kradmax2) ) / grav
+        LWP_slice(i,kradmax1) = 0.
+        IWP_slice(i,kradmax1) = 0.
       enddo
 
       cloudFrac(:,:) = 0.
@@ -760,7 +771,6 @@ contains
 
         enddo
       enddo
-
   end subroutine setupSlicesFromProfiles
 
 ! ==============================================================================;
@@ -771,14 +781,14 @@ contains
     use modglobal,   only : xday,xlat,xlon,imax,xtime,rtimee,i1
     use shr_orb_mod, only : shr_orb_decl
     use modmpi,      only : myid
-    use modsurfdata, only : albedoav_surf,vis_albedoav_surf,nir_albedoav_surf,albedo_surf,iband_uvs_s,iband_uvs_e,iband_nir_s,iband_nir_e,weight_b
-    use modcanopy,   only : lcanopyeb,albdir_can,albdif_can
+    use modsurfdata, only : albedoav_surf,albedo_surf,canrad_bands_sw,n_bands_sw
+    use modcanopy,   only : lcanopyeb,albdir_can,albdif_can,canradactive
 
     implicit none
     integer             :: ib
     integer, intent(in) :: j
     logical,intent(out) :: sunUp
-    real                :: dayForSW
+    real                :: dayForSW,lwght,swght
 
     if(doperpetual) then
         !====================!
@@ -813,31 +823,34 @@ contains
     ! if all values in solarZenithAngleCos are >= its smallest positive, non-zero element
     if (all(solarZenithAngleCos(:) >= tiny(solarZenithAngleCos))) then
       sunUp = .true.
-      if(lcanopyeb) then ! albedo is provided by canopy radiation subroutine of previous timestep
+      if(lcanopyeb .and. canradactive) then ! albedo is provided by canopy radiation subroutine of previous timestep
         asdir(:) = 0
         aldir(:) = 0
         asdif(:) = 0
         aldif(:) = 0
-
-        do ib=iband_uvs_s,iband_uvs_e
-            asdir(1:imax) = asdir(1:imax) + albdir_can(2:i1,j,ib) * weight_b(ib)
-            asdif(1:imax) = asdif(1:imax) + albdif_can(2:i1,j,ib) * weight_b(ib)
+        swght = 0
+        lwght = 0
+        do ib=1, n_bands_sw
+            if (canrad_bands_sw(ib)%spectral_type == 1 .or. canrad_bands_sw(ib)%spectral_type == 2) then
+                asdir(1:imax) = asdir(1:imax) + albdir_can(2:i1,j,ib) * canrad_bands_sw(ib)%weight
+                asdif(1:imax) = asdif(1:imax) + albdif_can(2:i1,j,ib) * canrad_bands_sw(ib)%weight
+                swght = swght + canrad_bands_sw(ib)%weight
+            else if(canrad_bands_sw(ib)%spectral_type == 3) then
+                aldir(1:imax) = aldir(1:imax) + albdir_can(2:i1,j,ib) * canrad_bands_sw(ib)%weight
+                aldif(1:imax) = aldif(1:imax) + albdif_can(2:i1,j,ib) * canrad_bands_sw(ib)%weight
+                lwght = lwght + canrad_bands_sw(ib)%weight
+            endif
         end do
-        asdir(1:imax) = asdir(1:imax) / sum(weight_b(iband_uvs_s:iband_uvs_e))
-        asdif(1:imax) = asdif(1:imax) / sum(weight_b(iband_uvs_s:iband_uvs_e))
-
-        do ib=iband_nir_s,iband_nir_e
-            aldir(1:imax) = aldir(1:imax) + albdir_can(2:i1,j,ib) * weight_b(ib)
-            aldif(1:imax) = aldif(1:imax) + albdif_can(2:i1,j,ib) * weight_b(ib)
-        end do
-        aldir(1:imax) = aldir(1:imax) / sum(weight_b(iband_nir_s:iband_nir_e))
-        aldif(1:imax) = aldif(1:imax) / sum(weight_b(iband_nir_s:iband_nir_e))
-
+        asdir(1:imax) = asdir(1:imax) / swght
+        asdif(1:imax) = asdif(1:imax) / swght
+        aldir(1:imax) = aldir(1:imax) / lwght
+        aldif(1:imax) = aldif(1:imax) / lwght
+        print *,asdir(2),asdif(2),aldir(2),aldif(2)
       else if (lCnstAlbedo) then
-        aldir = max(albedoav_surf, nir_albedoav_surf)
-        asdir = max(albedoav_surf, vis_albedoav_surf)
-        aldif = max(albedoav_surf, nir_albedoav_surf)        ! Specification of the diffuse albedo is also important for the
-        asdif = max(albedoav_surf, vis_albedoav_surf)        ! total surface albedo
+        aldir = albedoav_surf
+        asdir = albedoav_surf
+        aldif = albedoav_surf        ! Specification of the diffuse albedo is also important for the
+        asdif = albedoav_surf        ! total surface albedo
       else
         call albedo             ! calculate albedo for the solarZenithAngleCos
       end if

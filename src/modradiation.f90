@@ -46,7 +46,7 @@ contains
     namelist/NAMRADIATION/ &
       lCnstZenith, cnstZenith, lCnstAlbedo, ioverlap, &
       inflglw, iceflglw, liqflglw, inflgsw, iceflgsw, liqflgsw, &
-      ocean, usero3, co2factor, doperpetual, doseasons, iyear, sfc_emis, kmin_rad!, radcanoffset
+      ocean, usero3, co2factor, doperpetual, doseasons, iyear, sfc_emis
 
     if(myid==0)then
       open(ifnamopt,file=fname_options,status='old',iostat=ierr)
@@ -92,8 +92,6 @@ contains
     call MPI_BCAST(doseasons,   1,MPI_LOGICAL,0,comm3d,ierr)
     call MPI_BCAST(iyear,       1,MPI_INTEGER,0,comm3d,ierr)
     call MPI_BCAST(sfc_emis,    1,my_real    ,0,comm3d,ierr)
-    call MPI_BCAST(kmin_rad,    1,MPI_INTEGER,0,comm3d,ierr)
-    !call MPI_BCAST(radcanoffset,1,MPI_LOGICAL,0,comm3d,ierr)
 
     allocate(thlprad   (2-ih:i1+ih,2-jh:j1+jh,k1) )
     allocate(swd       (2-ih:i1+ih,2-jh:j1+jh,k1) )
@@ -318,7 +316,7 @@ subroutine radpar
         lwu(i,j,k) = dlwbot*exp(-rka*lwpb(k))
       end do
 
-       do k=kmin_rad,kmax
+       do k=1,kmax
          thlpld         = -(lwd(i,j,k+1)-lwd(i,j,k))/(rhof(k)*cp*exnf(k)*dzf(k))
          thlplu         = -(lwu(i,j,k+1)-lwu(i,j,k))/(rhof(k)*cp*exnf(k)*dzf(k))
          thlprad(i,j,k) =   thlprad(i,j,k) + thlpld+thlplu
@@ -365,7 +363,7 @@ subroutine radpar
         call sunray(tau,tauc,i,j)
       end if
 
-      do k=kmin_rad,kmax
+      do k=1,kmax
         thlpsw          = ((swd(i,j,k+1)-swu(i,j,k+1))-(swd(i,j,k)-swu(i,j,k)))/(rhof(k)*cp*exnf(k)*dzf(k))
         thlprad(i,j,k)  = thlprad(i,j,k) + thlpsw
 
