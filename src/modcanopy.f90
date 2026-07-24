@@ -177,62 +177,6 @@ contains
       ncanopy = min(ncanopy,kmax)
     endif
 
-    if(lsplitleaf .or. lcanopyeb .or. lcanopy) then
-        ! read canrad sw spectral bands from file
-        if (lcanradbands) then
-           ! Open file
-            open (ifinput,file='canradbands.inp.'//cexpnr)
-
-            n_bands_sw = 0
-            do
-                read(ifinput, '(a80)', iostat=ierr) readstring
-                if (ierr /= 0) exit
-                if (readstring(1:1) /= '#') n_bands_sw = n_bands_sw + 1
-            end do
-
-            allocate(canrad_bands_sw(n_bands_sw))
-
-            rewind(ifinput)
-
-            k = 0
-            total_weight = 0
-            do
-                read(ifinput, '(a80)', iostat=ierr) readstring
-                if (ierr /= 0) exit
-                if (readstring(1:1) == '#') cycle
-                read(readstring, *) spectral_type, sigma, weight, alb_soil
-
-                k = k + 1
-                if (spectral_type == 'UV') then
-                    canrad_bands_sw(k)%spectral_type = 1
-                else if (spectral_type == 'PAR') then
-                    canrad_bands_sw(k)%spectral_type = 2
-                else if (spectral_type == 'NIR') then
-                    canrad_bands_sw(k)%spectral_type = 3
-                endif
-
-                canrad_bands_sw(k)%sigma  = sigma
-                canrad_bands_sw(k)%weight = weight
-                canrad_bands_sw(k)%alb_soil = alb_soil
-                total_weight = total_weight + weight
-            end do
-
-            close(ifinput)
-
-            do k = 1, n_bands_sw
-                canrad_bands_sw(k)%weight = canrad_bands_sw(k)%weight / total_weight
-            end do
-        else
-            n_bands_sw = 4
-            allocate(canrad_bands_sw(n_bands_sw))
-
-            canrad_bands_sw(1) = canrad_band(1, 0.157, 0.128, albedoav_surf)
-            canrad_bands_sw(2) = canrad_band(2, 0.092, 0.450, albedoav_surf)
-            canrad_bands_sw(3) = canrad_band(3, 0.622, 0.055, albedoav_surf)
-            canrad_bands_sw(4) = canrad_band(3, 0.750, 0.367, albedoav_surf)
-        end if
-    end if
-
     if(lsplitleaf .and. lcanopyeb) then
       if(myid==0) stop "WARNING::: You set both lsplitleaf and lcanopyeb to .true., but that is currently not possible"
     endif
@@ -241,6 +185,77 @@ contains
     endif
 
     call MPI_BCAST(lcanopy      ,   1, mpi_logical , 0, comm3d, mpierr)
+    call MPI_BCAST(lcanopyeb    ,   1, mpi_logical , 0, comm3d, mpierr)
+
+    if(lsplitleaf .or. lcanopyeb .or. lcanopy) then
+        ! read canrad sw spectral bands from file
+        ! first get number of bands, then allocate canrad_bands_sw array, then fill
+        if (myid==0) then
+            if (lcanradbands) then
+               ! Open file
+                open (ifinput,file='canradbands.inp.'//cexpnr)
+
+                n_bands_sw = 0
+                do
+                    read(ifinput, '(a80)', iostat=ierr) readstring
+                    if (ierr /= 0) exit
+                    if (readstring(1:1) /= '#') n_bands_sw = n_bands_sw + 1
+                end do
+            else
+                n_bands_sw = 4
+            end if
+        end if
+
+        call MPI_BCAST(n_bands_sw,   1, mpi_integer , 0, comm3d, mpierr)
+        allocate(canrad_bands_sw(n_bands_sw))
+
+        if (myid==0) then
+            if (lcanradbands) then
+                rewind(ifinput)
+
+                k = 0
+                total_weight = 0
+                do
+                    read(ifinput, '(a80)', iostat=ierr) readstring
+                    if (ierr /= 0) exit
+                    if (readstring(1:1) == '#') cycle
+                    read(readstring, *) spectral_type, sigma, weight, alb_soil
+
+                    k = k + 1
+                    if (spectral_type == 'UV') then
+                        canrad_bands_sw(k)%spectral_type = 1
+                    else if (spectral_type == 'PAR') then
+                        canrad_bands_sw(k)%spectral_type = 2
+                    else if (spectral_type == 'NIR') then
+                        canrad_bands_sw(k)%spectral_type = 3
+                    endif
+
+                    canrad_bands_sw(k)%sigma  = sigma
+                    canrad_bands_sw(k)%weight = weight
+                    canrad_bands_sw(k)%alb_soil = alb_soil
+                    total_weight = total_weight + weight
+                end do
+
+                close(ifinput)
+
+                do k = 1, n_bands_sw
+                    canrad_bands_sw(k)%weight = canrad_bands_sw(k)%weight / total_weight
+                end do
+            else
+                canrad_bands_sw(1) = canrad_band(1, 0.157, 0.128, albedoav_surf)
+                canrad_bands_sw(2) = canrad_band(2, 0.092, 0.450, albedoav_surf)
+                canrad_bands_sw(3) = canrad_band(3, 0.622, 0.055, albedoav_surf)
+                canrad_bands_sw(4) = canrad_band(3, 0.750, 0.367, albedoav_surf)
+            end if
+        end if
+
+        call MPI_BCAST(canrad_bands_sw%spectral_type, n_bands_sw, mpi_integer , 0, comm3d, mpierr)
+        call MPI_BCAST(canrad_bands_sw%sigma,         n_bands_sw, my_real , 0, comm3d, mpierr)
+        call MPI_BCAST(canrad_bands_sw%weight,        n_bands_sw, my_real , 0, comm3d, mpierr)
+        call MPI_BCAST(canrad_bands_sw%alb_soil,      n_bands_sw, my_real , 0, comm3d, mpierr)
+
+    end if
+
     call MPI_BCAST(ncanopy      ,   1, mpi_integer , 0, comm3d, mpierr)
     call MPI_BCAST(cd           ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(lai_can      ,   1, my_real     , 0, comm3d, mpierr)
@@ -255,7 +270,6 @@ contains
     call MPI_BCAST(wth_alph     ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(wqt_alph     ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(wsv_alph     , 100, my_real     , 0, comm3d, mpierr)
-    call MPI_BCAST(lcanopyeb    ,   1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(lwidth       ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(llength      ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(transpiretype,   1, my_real     , 0, comm3d, mpierr)
@@ -266,7 +280,6 @@ contains
     call MPI_BCAST(lrelaxci_can ,   1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(kci_can      ,   1, my_real     , 0, comm3d, mpierr)
     call MPI_BCAST(sw_canrad_meth  ,   1, mpi_integer , 0, comm3d, mpierr)
-    call MPI_BCAST(lcanradbands ,   1, mpi_logical , 0, comm3d, mpierr)
 
     if (.not. (lcanopy)) return
 
