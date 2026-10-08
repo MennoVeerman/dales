@@ -370,8 +370,8 @@ contains
                                   trestart, ladaptive,llsadv,tnextrestart,longint
     use modsubgrid,        only : ekm,ekh
     use modsurfdata,       only : wsvsurf, &
-                                  thls,tskin,tskinm,tsoil,tsoilm,phiw,phiwm,Wl,Wlm,thvs,qts,isurf,svs,obl,oblav,&
-                                  thvs_patch,lhetero,qskin
+                                  thls,tskin_surf,tskinm_surf,tsoil,tsoilm,phiw,phiwm,Wl,Wlm,thvs,qts,isurf,svs,obl,oblav,&
+                                  thvs_patch,lhetero,qskin_surf
     use modsurface,        only : surface,qtsurf,dthldz,ps
     use modboundary,       only : boundary
     use modmpi,            only : slabsum,myid,comm3d,mpierr,my_real
@@ -380,6 +380,7 @@ contains
 
     use modtestbed,        only : ltestbed,tb_ps,tb_thl,tb_qt,tb_u,tb_v,tb_w,tb_ug,tb_vg,&
                                   tb_dqtdxls,tb_dqtdyls,tb_qtadv,tb_thladv
+    use modraddata,        only : tskin_rad                              
     integer i,j,k,n
     logical negval !switch to allow or not negative values in randomnization
 
@@ -562,22 +563,22 @@ contains
 
       select case(isurf)
       case(1)
-        tskin  = thls
-        tskinm = tskin
+        tskin_surf  = thls
+        tskinm_surf = tskin_surf
         tsoilm = tsoil
         phiwm  = phiw
         Wlm    = Wl
       case(2)
-        tskin  = thls
+        tskin_surf  = thls
       case(3,4)
         thls = thlprof(1)
         qts  = qtprof(1)
-        tskin  = thls
-        qskin  = qts
+        tskin_surf  = thls
+        qskin_surf  = qts
       case(10)
         call initsurf_user
       end select
-
+      tskin_rad =  tskin_surf ! radiation also needs tskin initalized XPB
       ! Set initial Obukhov length to -0.1 for iteration
       obl   = -0.1
       oblav = -0.1
@@ -807,8 +808,8 @@ contains
   subroutine readrestartfiles
 
     use modsurfdata, only : ustar,thlflux,qtflux,svflux,dthldz,dqtdz,ps,thls,qts,thvs,oblav,&
-                           tsoil,phiw,tskin,Wl,isurf,ksoilmax,Qnet,swdavn,swuavn,lwdavn,lwuavn,nradtime,&
-                           obl,xpatches,ypatches,ps_patch,thls_patch,qts_patch,thvs_patch,oblpatch,lhetero,qskin
+                           tsoil,phiw,tskin_surf,Wl,isurf,ksoilmax,Qnet,swdavn,swuavn,lwdavn,lwuavn,nradtime,&
+                           obl,xpatches,ypatches,ps_patch,thls_patch,qts_patch,thvs_patch,oblpatch,lhetero,qskin_surf
     use modraddata, only: iradiation, useMcICA
     use modfields,  only : u0,v0,w0,thl0,qt0,ql0,ql0h,e120,dthvdz,presf,presh,sv0,tmp0,esl,qvsl,qvsi
     use modglobal,  only : i1,i2,ih,j1,j2,jh,k1,dtheta,dqt,dsv,startfile,timee,&
@@ -856,8 +857,8 @@ contains
       read(ifinput)  ps,thls,qts,thvs,oblav
       read(ifinput)  dtheta,dqt,timee,dt,tres
       read(ifinput)   ((obl (i,j  ),i=1,i2      ),j=1,j2      )
-      read(ifinput)   ((tskin(i,j ),i=1,i2      ),j=1,j2      )
-      read(ifinput)   ((qskin(i,j ),i=1,i2      ),j=1,j2      )
+      read(ifinput)   ((tskin_surf(i,j ),i=1,i2      ),j=1,j2      )
+      read(ifinput)   ((qskin_surf(i,j ),i=1,i2      ),j=1,j2      )
       if(lhetero) then
         read(ifinput)   ((ps_patch  (i,j),i=1,xpatches),j=1,ypatches)
         read(ifinput)   ((thls_patch(i,j),i=1,xpatches),j=1,ypatches)
@@ -884,7 +885,7 @@ contains
       open(unit=ifinput,file=name,form='unformatted')
       read(ifinput) (((tsoil(i,j,k),i=1,i2),j=1,j2),k=1,ksoilmax)
       read(ifinput) (((phiw(i,j,k),i=1,i2),j=1,j2),k=1,ksoilmax)
-      read(ifinput) ((tskin(i,j),i=1,i2),j=1,j2)
+      read(ifinput) ((tskin_surf(i,j),i=1,i2),j=1,j2)
       read(ifinput) ((Wl(i,j),i=1,i2),j=1,j2)
       read(ifinput) ((Qnet(i,j),i=1,i2),j=1,j2)
       if(iradiation == 1 .and. useMcICA) then
@@ -901,8 +902,8 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine writerestartfiles
     use modsurfdata,only: ustar,thlflux,qtflux,svflux,dthldz,dqtdz,ps,thls,qts,thvs,oblav,&
-                          tsoil,phiw,tskin,Wl,ksoilmax,isurf,ksoilmax,Qnet,swdavn,swuavn,lwdavn,lwuavn,nradtime,&
-                          obl,xpatches,ypatches,ps_patch,thls_patch,qts_patch,thvs_patch,oblpatch,lhetero,qskin
+                          tsoil,phiw,tskin_surf,Wl,ksoilmax,isurf,ksoilmax,Qnet,swdavn,swuavn,lwdavn,lwuavn,nradtime,&
+                          obl,xpatches,ypatches,ps_patch,thls_patch,qts_patch,thvs_patch,oblpatch,lhetero,qskin_surf
     use modraddata, only: iradiation, useMcICA
     use modfields, only : u0,v0,w0,thl0,qt0,ql0,ql0h,e120,dthvdz,presf,presh,sv0,tmp0,esl,qvsl,qvsi
     use modglobal, only : i1,i2,ih,j1,j2,jh,k1,dsv,trestart,itrestart,tnextrestart,dt_lim,rtimee,timee,tres,cexpnr,&
@@ -959,8 +960,8 @@ contains
       write(ifoutput)  ps,thls,qts,thvs,oblav
       write(ifoutput)  dtheta,dqt,timee,  dt,tres
       write(ifoutput)   ((obl (i,j  ),i=1,i2      ),j=1,j2      )
-      write(ifoutput)   ((tskin(i,j ),i=1,i2      ),j=1,j2      )
-      write(ifoutput)   ((qskin(i,j ),i=1,i2      ),j=1,j2      )
+      write(ifoutput)   ((tskin_surf(i,j ),i=1,i2      ),j=1,j2      )
+      write(ifoutput)   ((qskin_surf(i,j ),i=1,i2      ),j=1,j2      )
       if(lhetero) then
         write(ifoutput)  ((ps_patch  (i,j),i=1,xpatches),j=1,ypatches)
         write(ifoutput)  ((thls_patch(i,j),i=1,xpatches),j=1,ypatches)
@@ -994,7 +995,7 @@ contains
         open  (ifoutput,file=name,form='unformatted')
         write(ifoutput) (((tsoil(i,j,k),i=1,i2),j=1,j2),k=1,ksoilmax)
         write(ifoutput) (((phiw(i,j,k),i=1,i2),j=1,j2),k=1,ksoilmax)
-        write(ifoutput) ((tskin(i,j),i=1,i2),j=1,j2)
+        write(ifoutput) ((tskin_surf(i,j),i=1,i2),j=1,j2)
         write(ifoutput) ((Wl(i,j),i=1,i2),j=1,j2)
         write(ifoutput) ((Qnet(i,j),i=1,i2),j=1,j2)
         if(iradiation == 1 .and. useMcICA) then
@@ -1265,7 +1266,7 @@ contains
       ! Reset all background profiles
       rhobf=0.
       rhobh=0.
-
+      height=0
       ! Read background profiles in all cases
       open (ifinput,file='baseprof.inp.'//cexpnr)
       read (ifinput,'(a80)') chmess

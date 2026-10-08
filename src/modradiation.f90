@@ -34,7 +34,7 @@ contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine initradiation
-    use modglobal,    only : i1,ih,j1,jh,k1,nsv,ih,jh,btime,tres,dt_lim,ifnamopt,fname_options
+    use modglobal,    only : i1,ih,j1,jh,k1,nsv,ih,jh,btime,tres,dt_lim,ifnamopt,fname_options,i2,j2
     use modmpi,       only : myid,my_real,comm3d,mpi_logical,mpi_integer
     implicit none
 
@@ -46,7 +46,7 @@ contains
     namelist/NAMRADIATION/ &
       lCnstZenith, cnstZenith, lCnstAlbedo, ioverlap, &
       inflglw, iceflglw, liqflglw, inflgsw, iceflgsw, liqflgsw, &
-      ocean, usero3, co2factor, doperpetual, doseasons, iyear
+      ocean, usero3, co2factor, doperpetual, doseasons, iyear, sfc_emis
 
     if(myid==0)then
       open(ifnamopt,file=fname_options,status='old',iostat=ierr)
@@ -75,22 +75,23 @@ contains
     call MPI_BCAST(iDE,1,MPI_INTEGER,0,comm3d,ierr)
     call MPI_BCAST(laero,1,MPI_LOGICAL,0,comm3d,ierr)
 
-    call MPI_BCAST(lCnstZenith,1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(cnstZenith, 1,my_real,    0,comm3d,ierr)
-    call MPI_BCAST(lCnstAlbedo,1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(ioverlap,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(inflglw,    1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(iceflglw,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(liqflglw,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(inflgsw,    1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(iceflgsw,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(liqflgsw,   1,MPI_INTEGER,0,comm3d,ierr)
-    call MPI_BCAST(ocean,      1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(usero3,     1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(co2factor,  1,my_real,    0,comm3d,ierr)
-    call MPI_BCAST(doperpetual,1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(doseasons,  1,MPI_LOGICAL,0,comm3d,ierr)
-    call MPI_BCAST(iyear,      1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(lCnstZenith, 1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(cnstZenith,  1,my_real,    0,comm3d,ierr)
+    call MPI_BCAST(lCnstAlbedo, 1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(ioverlap,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(inflglw,     1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(iceflglw,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(liqflglw,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(inflgsw,     1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(iceflgsw,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(liqflgsw,    1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(ocean,       1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(usero3,      1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(co2factor,   1,my_real,    0,comm3d,ierr)
+    call MPI_BCAST(doperpetual, 1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(doseasons,   1,MPI_LOGICAL,0,comm3d,ierr)
+    call MPI_BCAST(iyear,       1,MPI_INTEGER,0,comm3d,ierr)
+    call MPI_BCAST(sfc_emis,    1,my_real    ,0,comm3d,ierr)
 
     allocate(thlprad   (2-ih:i1+ih,2-jh:j1+jh,k1) )
     allocate(swd       (2-ih:i1+ih,2-jh:j1+jh,k1) )
@@ -106,6 +107,9 @@ contains
     allocate(swdir     (2-ih:i1+ih,2-jh:j1+jh,k1) )
     allocate(swdif     (2-ih:i1+ih,2-jh:j1+jh,k1) )
     allocate(lwc       (2-ih:i1+ih,2-jh:j1+jh,k1) )
+    allocate(albedo_rad(i2,j2)) ! same dims as surface variables
+    allocate(tskin_rad (i2,j2)) ! same dims as surface variables
+    allocate(qskin_rad (i2,j2)) ! same dims as surface variables
 
     allocate(SW_up_TOA (2-ih:i1+ih,2-jh:j1+jh)    )
     allocate(SW_dn_TOA (2-ih:i1+ih,2-jh:j1+jh)    )
@@ -132,6 +136,10 @@ contains
     swdir = 0.
     swdif = 0.
     lwc   = 0.
+
+    albedo_rad = 0.
+    tskin_rad  = 0.
+    qskin_rad  = 0.
 
     SW_up_TOA=0;SW_dn_TOA=0;LW_up_TOA=0;LW_dn_TOA=0
     SW_up_ca_TOA = 0. ;SW_dn_ca_TOA=0    ;LW_up_ca_TOA=0    ;LW_dn_ca_TOA=0
@@ -193,8 +201,8 @@ contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine radiation
-    use modglobal, only : timee, dt_lim,rk3step
-    use modfields, only : thlp
+    use modglobal, only : timee, dt, dt_lim,rk3step
+    use modfields, only : thlp,thl0
     use moduser,   only : rad_user
     use modradfull,only : radfull
     use modradrrtmg, only : radrrtmg
@@ -203,8 +211,10 @@ contains
     if(timee<tnext .and. rk3step==3) then
       dt_lim = min(dt_lim,tnext-timee)
     end if
-    if((itimerad==0 .or. timee==tnext) .and. rk3step==1) then
-      tnext = tnext+itimerad
+
+    if(((itimerad==0 .or. timee==tnext) .and. rk3step==1) .or. (timee==dt)) then
+      if (timee == tnext) tnext = tnext+itimerad
+
       thlprad = 0.0
       select case (iradiation)
           case (irad_none)
@@ -241,6 +251,7 @@ contains
     deallocate(thlprad,swd,swdir,swdif,swu,lwd,lwu,swdca,swuca,lwdca,lwuca,lwc)
     deallocate(SW_up_TOA, SW_dn_TOA,LW_up_TOA,LW_dn_TOA, &
                SW_up_ca_TOA,SW_dn_ca_TOA,LW_up_ca_TOA,LW_dn_ca_TOA)
+    deallocate(albedo_rad,tskin_rad,qskin_rad)
 
   end subroutine exitradiation
 
@@ -248,9 +259,11 @@ contains
 !> calculates tendency due to parameterized radiation
 subroutine radpar
 
-  use modglobal,    only : i1,j1,kmax, k1,ih,jh,dzf,cp,xtime,rtimee,xday,xlat,xlon
-  use modfields,    only : ql0, sv0, rhof,exnf
+  use modglobal,    only : i1,j1,kmax, k1,ih,jh,dzf,cp,xtime,rtimee,xday,xlat,xlon,boltz
+  use modfields,    only : ql0, sv0, rhof,exnf,thl0
   use modsurfdata,  only : tauField
+  use modcanopy,    only : lcanopy, ncanopy
+
   implicit none
   real, allocatable :: lwpt(:),lwpb(:)
   real, allocatable :: tau(:)
@@ -312,6 +325,13 @@ subroutine radpar
     end do
     end do  ! end i,j loop
 
+  else ! LW at surface
+    do j=2,j1
+    do i=2,i1
+      lwd(i,j,1) =  0.8 * boltz * thl0(i,j,1) ** 4.
+      lwu(i,j,1) =  1.0 * boltz * tskin_rad(i,j) ** 4.
+    enddo
+    enddo
   endif  !end longwave loop
 
 !----------------------------------------------------------------------
@@ -329,7 +349,7 @@ subroutine radpar
       if (mu > 0.035) then  !factor 0.035 needed for security
         tauc = 0.           ! column-integrated tau cloud
         if (laero .or. lcloudshading) then ! not sure if I have to define the use of lcldoushading before
-          do k = 1,kmax        
+          do k = 1,kmax
             tau(k) = 0.      ! tau laagje dz
             if(laero) then ! there are aerosols
               tau(k) = sv0(i,j,k,iDE)
@@ -366,9 +386,8 @@ subroutine radpar
 
   subroutine sunray(tau,tauc,i,j)
 
-  use modglobal, only :  k1,boltz
-  use modsurfdata,  only : albedo,tskin
-  use modfields,   only : thl0
+  use modglobal, only :  k1
+  use modmpi, only : myid
 
   implicit none
 
@@ -432,12 +451,11 @@ subroutine radpar
   xm23p=1.0-rtt*rp
   ap23b=alpha+rtt*beta
 
-  t1=1-albedo(i,j)-rtt*(1.+albedo(i,j))*rp
-  t2=1-albedo(i,j)+rtt*(1.+albedo(i,j))*rp
-  t3=(1-albedo(i,j))*alpha-rtt*(1+albedo(i,j))*beta+albedo(i,j)*mu
+  t1=1-albedo_rad(i,j)-rtt*(1.+albedo_rad(i,j))*rp
+  t2=1-albedo_rad(i,j)+rtt*(1.+albedo_rad(i,j))*rp
+  t3=(1-albedo_rad(i,j))*alpha-rtt*(1+albedo_rad(i,j))*beta+albedo_rad(i,j)*mu
   c2=(xp23p*t3*exmu0-t1*ap23b*exmk)/(xp23p*t2*expk-xm23p*t1*exmk)
   c1=(ap23b-c2*xm23p)/xp23p
-
   do k = k1,1,-1
       taupath = taupath + taude(k)
 
@@ -448,8 +466,7 @@ subroutine radpar
       swu(i,j,k) = (Irr0 - (2./3.)*Irr1)                           ! diffuse up (lambertian)
       swdir(i,j,k) = mu*sw0*exp(-taupath/mu)
       swdif(i,j,k) = (Irr0 + (2./3.)*Irr1)
-      lwd(i,j,1) =  0.8 * boltz * thl0(i,j,1) ** 4.
-      lwu(i,j,1) =  1.0 * boltz * tskin(i,j) ** 4.
+
   end do
 
   deallocate(taude)
@@ -478,7 +495,6 @@ subroutine radpar
 
 
   subroutine radlsm
-    use modsurfdata, only : albedo, tskin
     use modglobal,   only : i1, j1, rtimee, xtime, xday, xlat, xlon, boltz, dzf
     use modfields,   only : thl0, ql0, rhof
     implicit none
@@ -501,13 +517,11 @@ subroutine radpar
         else
           swd(i,j,1) = - S0 * Tr * sinlea
         endif
-        swu(i,j,1) = - albedo(i,j) * swd(i,j,1)
+        swu(i,j,1) = - albedo_rad(i,j) * swd(i,j,1)
         lwd(i,j,1) = - 0.8 * boltz * thl0(i,j,1) ** 4.
-        lwu(i,j,1) = boltz * tskin(i,j) ** 4.
+        lwu(i,j,1) = boltz * tskin_rad(i,j) ** 4.
       end do
     end do
-
-    !write(6,*) "CvHrad", swd(2,2,1), swu(2,2,1), lwd(2,2,1), lwu(2,2,1), tskin(2,2)
 
   end subroutine radlsm
 

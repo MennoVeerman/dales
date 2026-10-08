@@ -132,7 +132,8 @@ program DALES      !Version 4.0.0alpha
   use modcloudfield,   only : initcloudfield, cloudfield
   use modfielddump,    only : initfielddump, fielddump,exitfielddump
   use modsamptend,     only : initsamptend, samptend,exitsamptend, tend_start,tend_adv,tend_subg,tend_force,&
-                              tend_rad,tend_ls,tend_micro, tend_topbound,tend_pois,tend_addon, tend_coriolis,leibniztend
+                              tend_rad,tend_ls,tend_micro, tend_topbound,tend_pois,tend_addon, tend_coriolis,&
+                              leibniztend,tend_canopyeb
 
   use modbulkmicrostat,only : initbulkmicrostat, bulkmicrostat,exitbulkmicrostat
   use modbudget,       only : initbudget, budgetstat, exitbudget
@@ -148,8 +149,10 @@ program DALES      !Version 4.0.0alpha
   !use modprojection,   only : initprojection, projection
   use modchem,         only : initchem,twostep
   use modcanopy,       only : initcanopy, canopy, exitcanopy
-
-
+  use modcanstat,      only : initcanstat ,canstat, exitcanstat
+  use modcandump,      only : initcandump, candump,exitcandump
+  
+  use modraddata,only : swdir
   implicit none
 
 !----------------------------------------------------------------
@@ -186,10 +189,11 @@ program DALES      !Version 4.0.0alpha
   call initchem
   call initheterostats
   call initcanopy
+  call initcanstat
+  call initcandump
 
   !call initspectra2
   call initcape
-
 
 !------------------------------------------------------
 !   3.0   MAIN TIME LOOP
@@ -200,7 +204,6 @@ program DALES      !Version 4.0.0alpha
     call tstep_update                           ! Calculate new timestep
     call timedep
     call samptend(tend_start,firstterm=.true.)
-
 !-----------------------------------------------------
 !   3.1   RADIATION
 !-----------------------------------------------------
@@ -211,7 +214,7 @@ program DALES      !Version 4.0.0alpha
 !   3.2   THE SURFACE LAYER
 !-----------------------------------------------------
     call surface
-
+    call samptend(tend_canopyeb)
 !-----------------------------------------------------
 !   3.3   ADVECTION AND DIFFUSION
 !-----------------------------------------------------
@@ -270,6 +273,7 @@ program DALES      !Version 4.0.0alpha
     call timestat  !Timestat must preceed all other timeseries that could write in the same netCDF file (unless stated otherwise
     call genstat  !Genstat must preceed all other statistics that could write in the same netCDF file (unless stated otherwise
     call radstat
+    call canstat
     call lsmstat
     call sampling
     call quadrant
@@ -281,6 +285,7 @@ program DALES      !Version 4.0.0alpha
     !call projection
     call cloudfield
     call fielddump
+    call candump
     !call particles
 
     call bulkmicrostat
@@ -320,6 +325,8 @@ program DALES      !Version 4.0.0alpha
   call exitfielddump
   call exitheterostats
   call exitcanopy
+  call exitcanstat
+  call exitcandump
   call exitmodules
 
 end program DALES

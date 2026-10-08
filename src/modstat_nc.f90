@@ -73,11 +73,11 @@ contains
 ! ----------------------------------------------------------------------
 !> Subroutine Open_NC: Opens a NetCDF File and identifies starting record
 !
-  subroutine open_nc (fname, ncid,nrec,n1, n2, n3, ns,nq)
+  subroutine open_nc (fname, ncid,nrec,n1, n2, n3, ns, nq, n3m)
     use modglobal, only : author,version,rtimee
     implicit none
     integer, intent (out) :: ncid,nrec
-    integer, optional, intent (in) :: n1, n2, n3, ns, nq
+    integer, optional, intent (in) :: n1, n2, n3, ns, nq, n3m
     character (len=40), intent (in) :: fname
 
     character (len=12):: date='',time=''
@@ -119,7 +119,11 @@ contains
       end if
       if (present(n3)) then
         iret = nf90_def_dim(ncID, 'zt', n3, ztID)
-        iret = nf90_def_dim(ncID, 'zm', n3, zmID)
+        if (present(n3m)) then
+            iret = nf90_def_dim(ncID, 'zm', n3m, zmID)  ! zm with its own length
+        else
+            iret = nf90_def_dim(ncID, 'zm', n3, zmID)
+        end if
         iret = nf90_def_var(ncID,'zt',NF90_FLOAT,(/ztID/) ,VarID)
         iret=nf90_put_att(ncID,VarID,'longname','Vertical displacement of cell centers')
         iret=nf90_put_att(ncID,VarID,'units','m')

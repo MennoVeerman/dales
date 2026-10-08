@@ -114,9 +114,9 @@ contains
   !   use radiation,    only : d4stream
     use modglobal,    only : i1,ih,j1,jh,kmax,k1,cp,dzf,dzh,rlv,rd,pref0
     use modfields,    only : rhof, exnf,exnh, thl0,qt0,ql0,sv0
-    use modsurfdata,  only : albedo, ps
+    use modsurfdata,  only : ps
     use modmicrodata, only : imicro, imicro_bulk, Nc_0,iqr
-    use modraddata,   only : thlprad, lwd,lwu,swd,swu
+    use modraddata,   only : thlprad, lwd,lwu,swd,swu,albedo_rad,kmin
       implicit none
     real :: thlpld,thlplu,thlpsd,thlpsu
     integer :: i,j,k
@@ -156,14 +156,14 @@ contains
         end do
       end do
 
-      ! tempskin = tskin*exnh(1)
+      ! tempskin = tskin_surf*exnh(1)
      !CvH end edit
 
       if (imicro==imicro_bulk) then
         rr_b(:,:,1) = 0.
-        call d4stream(i1,ih,j1,jh,k1,tempskin,albedo,Nc_0,rhof_b,exnf_b*cp,temp_b,qv_b,ql_b,swd,swu,lwd,lwu,rr=rr_b)
+        call d4stream(i1,ih,j1,jh,k1,tempskin,albedo_rad,Nc_0,rhof_b,exnf_b*cp,temp_b,qv_b,ql_b,swd,swu,lwd,lwu,rr=rr_b)
       else
-        call d4stream(i1,ih,j1,jh,k1,tempskin,albedo,Nc_0,rhof_b,exnf_b*cp,temp_b,qv_b,ql_b,swd,swu,lwd,lwu)
+        call d4stream(i1,ih,j1,jh,k1,tempskin,albedo_rad,Nc_0,rhof_b,exnf_b*cp,temp_b,qv_b,ql_b,swd,swu,lwd,lwu)
       end if
       !Downward radiation fluxes are pointing downward in UCLALES, pointing upward in DALES
       lwd = -lwd
@@ -174,14 +174,13 @@ contains
 !      swu(:,:,1) = swu(:,:,1)+0.3333333*(swu(:,:,1)-swu(:,:,2))
 
 !Add up thl tendency
-      do k=1,kmax
+      do k=kmin,kmax
         do j=2,j1
           do i=2,i1
             thlpld          = -(lwd(i,j,k+1)-lwd(i,j,k))
             thlplu          = -(lwu(i,j,k+1)-lwu(i,j,k))
             thlpsd          = -(swd(i,j,k+1)-swd(i,j,k))
             thlpsu          = -(swu(i,j,k+1)-swu(i,j,k))
-
             thlprad(i,j,k)  = thlprad(i,j,k) + (thlpld+thlplu+thlpsu+thlpsd)/(rhof(k)*cp*exnf(k)*dzf(k))
           end do
         end do
@@ -416,7 +415,7 @@ contains
     end if
 
   end subroutine d4stream_setup
-  
+
   subroutine d4stream_tb_setup(k1,npts,nv1,nv,zp)
     use modtestbed, only : tbrad_p, tbrad_t, tbrad_ql, tbrad_qv, tbrad_o3, testbed_getinttime, nknudge
     implicit none
@@ -707,7 +706,7 @@ contains
     else
        y = exp ( - ( t1 - t0 ) / (u0+epsilon(u0)))
        fw = 0.5 * f0
-       do i = 1, 4          
+       do i = 1, 4
           jj = 5 - i
           z1(i) = fw / ( 1.0 + u(jj) / (u0+epsilon(u0)) )
           zz(i,1) = z1(i)

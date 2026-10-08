@@ -66,13 +66,17 @@ contains
     if (timee < 0.01) then
       call diagfld
     end if
-    if (lmoist .and. (.not. lnoclouds)) then
+    !if (rtimee>6230 .and. myid==116) write(*,*)'in thermodyn,myid,thl0',myid,thl0(:,:,:5)
+!    if (myid==101) write(*,*)'in thermodyn,myid,thl0',myid,thl0(:,:,:5)
+    !if (lmoist .and. (.not. lnoclouds)) then !XPB correct lnoclouds to define all thermo fields
+    if (lmoist ) then
       call icethermo0
     end if
     call diagfld
     call calc_halflev !calculate halflevel values of qt0 and thl0
 
-    if (lmoist .and. (.not. lnoclouds)) then
+    !if (lmoist .and. (.not. lnoclouds)) then !XPB correct lnoclouds to define all thermo fields
+    if (lmoist) then
       call icethermoh
     end if
 
@@ -458,8 +462,11 @@ contains
 !> Calculates liquid water content.and temperature
 !! \author Steef B\"oing
 
-  use modglobal, only : i1,j1,k1,rd,rv,rlv,tup,tdn,cp,ttab,esatltab,esatitab
+  use modglobal, only : i1,j1,k1,rd,rv,rlv,tup,tdn,cp,ttab,esatltab,esatitab,lnoclouds
   use modfields, only : qvsl,qvsi,qt0,thl0,exnf,presf,tmp0,ql0,esl
+  use modmpi,   only: myid ! xabi
+  use modglobal,only: rtimee !xabi
+  use modfields, only : thlp !xabi
   implicit none
 
   integer i, j, k
@@ -471,6 +478,8 @@ contains
 !     first guess is Tnr=tl
       nitert = 0
       niter = 0
+!      if (myid==101) write(*,*)'in thermodyn,myid,thl0',myid,thl0(:,:,:5) !xabi
+!      if (myid==101) write(*,*)'in thermodyn,myid,thlp',myid,thlp(:,:,:5) !xabi
       do k=1,k1
       do j=2,j1
       do i=2,i1
@@ -478,6 +487,10 @@ contains
             Tnr=exnf(k)*thl0(i,j,k)
             ilratio = max(0.,min(1.,(Tnr-tdn)/(tup-tdn)))
             tlonr=int((Tnr-150.)*5.)
+            if(tlonr<1 .or.tlonr>1999) then
+              write(*,*) 'first guess thermo crash: myid,i,j,k,thl0(i,j,k),qt0(i,j,k)'
+              write(*,*) myid,i,j,k,thl0(i,j,k),qt0(i,j,k)
+            endif
             thinr=tlonr+1
             tlo=ttab(tlonr)
             thi=ttab(thinr)
@@ -486,7 +499,8 @@ contains
             qvsl1=(rd/rv)*esl1/(presf(k)-(1.-rd/rv)*esl1)
             qvsi1=(rd/rv)*esi1/(presf(k)-(1.-rd/rv)*esi1)
             qsatur = ilratio*qvsl1+(1.-ilratio)*qvsi1
-            if(qt0(i,j,k)>qsatur) then
+            !if(qt0(i,j,k)>qsatur) then
+            if((.not. lnoclouds) .and. (qt0(i,j,k)>qsatur)) then !XPB
               Tnr_old=0.
               niter = 0
               thlguess = Tnr/exnf(k)-(rlv/(cp*exnf(k)))*max(qt0(i,j,k)-qsatur,0.)
@@ -551,7 +565,11 @@ contains
               qvsl(i,j,k)=qvsl1
               qvsi(i,j,k)=qvsi1
             endif
-            ql0(i,j,k) = max(qt0(i,j,k)-qsatur,0.)
+            if(.not. lnoclouds) then !XPB
+              ql0(i,j,k) = max(qt0(i,j,k)-qsatur,0.)
+            else
+              ql0(i,j,k) = 0.
+            endif  
       end do
       end do
       end do
@@ -565,7 +583,7 @@ contains
 !> Calculates liquid water content.and temperature
 !! \author Steef B\"oing
 
-  use modglobal, only : i1,j1,k1,rd,rv,rlv,tup,tdn,cp,ttab,esatltab,esatitab
+  use modglobal, only : i1,j1,k1,rd,rv,rlv,tup,tdn,cp,ttab,esatltab,esatitab,lnoclouds
   use modfields, only : qt0h,thl0h,exnh,presh,ql0h
   implicit none
 
@@ -593,7 +611,8 @@ contains
             qvsl1=(rd/rv)*esl1/(presh(k)-(1.-rd/rv)*esl1)
             qvsi1=(rd/rv)*esi1/(presh(k)-(1.-rd/rv)*esi1)
             qsatur = ilratio*qvsl1+(1.-ilratio)*qvsi1
-            if(qt0h(i,j,k)>qsatur) then
+            !if(qt0h(i,j,k)>qsatur) then
+            if((.not. lnoclouds) .and. (qt0h(i,j,k)>qsatur)) then !XPB
               Tnr_old=0.
               niter = 0
               thlguess = Tnr/exnh(k)-(rlv/(cp*exnh(k)))*max(qt0h(i,j,k)-qsatur,0.)
@@ -651,7 +670,11 @@ contains
               qvsi1=rd/rv*esi1/(presh(k)-(1.-rd/rv)*esi1)
               qsatur = ilratio*qvsl1+(1.-ilratio)*qvsi1
             endif
-            ql0h(i,j,k) = max(qt0h(i,j,k)-qsatur,0.)
+            if(.not. lnoclouds) then !XPB
+              ql0h(i,j,k) = max(qt0h(i,j,k)-qsatur,0.)
+            else
+              ql0h(i,j,k) = 0.
+            endif  
       end do
       end do
       end do

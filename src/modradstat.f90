@@ -34,7 +34,7 @@ implicit none
 PUBLIC :: initradstat, radstat, exitradstat
 save
 !NetCDF variables
-  integer,parameter :: nvar = 12
+  integer,parameter :: nvar = 14
   character(80),dimension(nvar,4) :: ncname
 
   real    :: dtav, timeav
@@ -47,6 +47,7 @@ save
 
 !   --------------
   real, allocatable :: thltendav(:)
+  real, allocatable :: thltendav2(:)
   real, allocatable :: thllwtendav(:)
   real, allocatable :: thlswtendav(:)
   real, allocatable :: lwuav(:)
@@ -62,6 +63,7 @@ save
 
 !
   real, allocatable :: thltendmn(:)
+  real, allocatable :: thltendmn2(:)
   real, allocatable :: thllwtendmn(:)
   real, allocatable :: thlswtendmn(:)
   real, allocatable :: lwumn(:)
@@ -140,6 +142,7 @@ contains
     allocate(swucaav(k1))
     allocate(thllwtendav(k1))
     allocate(thltendav(k1))
+    allocate(thltendav2(k1))
     allocate(thlswtendav(k1))
 
     allocate(lwumn(k1))
@@ -154,6 +157,7 @@ contains
     allocate(swucamn(k1))
     allocate(thllwtendmn(k1))
     allocate(thltendmn(k1))
+    allocate(thltendmn2(k1))
     allocate(thlswtendmn(k1))
     allocate(thlradlsmn(k1))
 
@@ -168,6 +172,7 @@ contains
     swdcamn = 0.0
     swucamn = 0.0
     thltendmn = 0.0
+    thltendmn2 = 0.0
     thllwtendmn = 0.0
     thlswtendmn = 0.0
     thlradlsmn  = 0.0
@@ -192,10 +197,12 @@ contains
         call ncinfo(ncname( 6,:),'lwd','Long wave downward radiative flux','W/m^2','mt')
         call ncinfo(ncname( 7,:),'swu','Short wave upward radiative flux','W/m^2','mt')
         call ncinfo(ncname( 8,:),'swd','Short wave downward radiative flux','W/m^2','mt')
-        call ncinfo(ncname( 9,:),'lwuca','Long wave clear air upward radiative flux','W/m^2','mt')
-        call ncinfo(ncname(10,:),'lwdca','Long wave clear air downward radiative flux','W/m^2','mt')
-        call ncinfo(ncname(11,:),'swuca','Short wave clear air upward radiative flux','W/m^2','mt')
-        call ncinfo(ncname(12,:),'swdca','Short wave clear air downward radiative flux','W/m^2','mt')
+        call ncinfo(ncname( 9,:),'swdir','Direct short wave downward radiative flux','W/m^2','mt')
+        call ncinfo(ncname(10,:),'swdif','Diffuse short wave downward radiative flux','W/m^2','mt')
+        call ncinfo(ncname(11,:),'lwuca','Long wave clear air upward radiative flux','W/m^2','mt')
+        call ncinfo(ncname(12,:),'lwdca','Long wave clear air downward radiative flux','W/m^2','mt')
+        call ncinfo(ncname(13,:),'swuca','Short wave clear air upward radiative flux','W/m^2','mt')
+        call ncinfo(ncname(14,:),'swdca','Short wave clear air downward radiative flux','W/m^2','mt')
 
 
         call define_nc( ncid_prof, NVar, ncname)
@@ -229,10 +236,11 @@ contains
 !> Calculates the statistics
   subroutine do_radstat
 
-    use modmpi,    only :  slabsum
+    use modmpi,    only :  slabsum,myid
     use modglobal, only : kmax,ijtot,cp,dzf,i1,j1,k1,ih,jh
     use modfields, only : thlpcar,rhof,exnf
     use modraddata, only : lwd,lwu,swd,swdir,swdif,swu,thlprad,irad_par,iradiation
+    use modcanopy, only : lcanopyeb,ncanopy
 
     implicit none
     integer :: k
@@ -244,9 +252,10 @@ contains
     swdifav = 0.
     swuav  = 0.
     thltendav = 0.
+    thltendav2 = 0.
     thllwtendav = 0.
     thlswtendav = 0.
-    thltendav = 0.
+
 
     call slabsum(lwdav ,1,k1,lwd ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
     call slabsum(lwuav ,1,k1,lwu ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
@@ -262,9 +271,15 @@ contains
       end do
     else !upward fluxes positive, downwards negative
       do k=1,kmax
-        thllwtendav(k) = (-lwdav(k+1) - lwuav(k+1) + lwdav(k) + lwuav(k))/(rhof(k)*exnf(k)*cp*dzf(k)) 
-        thlswtendav(k) = (-swdav(k+1) - swuav(k+1) + swdav(k) + swuav(k))/(rhof(k)*exnf(k)*cp*dzf(k)) 
+        thllwtendav(k) = (-lwdav(k+1) - lwuav(k+1) + lwdav(k) + lwuav(k))/(rhof(k)*exnf(k)*cp*dzf(k))
+        thlswtendav(k) = (-swdav(k+1) - swuav(k+1) + swdav(k) + swuav(k))/(rhof(k)*exnf(k)*cp*dzf(k))
       end do
+    endif
+    thltendav2= thllwtendav + thlswtendav
+    if (lcanopyeb) then ! sw-lw changes in canopy do not cause any change in air temp, but in canopy temp
+      thllwtendav(:ncanopy+1) = 0.0
+      thlswtendav(:ncanopy+1) = 0.0
+      thltendav2(:ncanopy+1) = 0.0
     endif
 
 
@@ -277,9 +292,11 @@ contains
     swdifmn     = swdifmn     + swdifav     / ijtot
     swumn       = swumn       + swuav       / ijtot
     thltendmn   = thltendmn   + thltendav   / ijtot
+    thltendmn2  = thltendmn2   + thltendav2   / ijtot
     thllwtendmn = thllwtendmn + thllwtendav / ijtot
     thlswtendmn = thlswtendmn + thlswtendav / ijtot
     thlradlsmn  = thlradlsmn  + thlpcar
+
 
     if (lradclearair) call radclearair
   end subroutine do_radstat
@@ -288,8 +305,9 @@ contains
     use modradfull,    only : d4stream
     use modglobal,    only : i1,ih,j1,jh,kmax,k1,cp,rlv,rd,pref0,ijtot
     use modfields,    only : rhof, exnf, thl0,qt0,ql0
-    use modsurfdata,  only : albedo, tskin, qskin, thvs, ps
+    use modsurfdata,  only : thvs, ps
     use modmicrodata, only : Nc_0
+    use modraddata,   only : tskin_rad,albedo_rad,qskin_rad
     use modmpi,    only :  slabsum
       implicit none
     real, dimension(k1)  :: rhof_b, exnf_b
@@ -327,12 +345,12 @@ contains
       do j=2,j1
         do i=2,i1
           ql_b(i,j,1)   = 0.! CvH, no ql at surface
-          qv_b(i,j,1)   = qskin(i,j) !CvH, no ql at surface thus qv = qt
-          temp_b(i,j,1) = tskin(i,j)*exnersurf
+          qv_b(i,j,1)   = qskin_rad(i,j) !CvH, no ql at surface thus qv = qt
+          temp_b(i,j,1) = tskin_rad(i,j)*exnersurf
         end do
       end do
 
-      call d4stream(i1,ih,j1,jh,k1,tskin,albedo,Nc_0,rhof_b,exnf_b*cp,temp_b,qv_b,ql_b,swdca,swuca,lwdca,lwuca)
+      call d4stream(i1,ih,j1,jh,k1,tskin_rad,albedo_rad,Nc_0,rhof_b,exnf_b*cp,temp_b,qv_b,ql_b,swdca,swuca,lwdca,lwuca)
 
 
     call slabsum(lwdcaav ,1,k1,lwdca ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
@@ -379,6 +397,7 @@ contains
       thlswtendmn = thlswtendmn /nsamples
       thlradlsmn  = thlradlsmn  /nsamples
       thltendmn   = thltendmn   /nsamples
+      thltendmn2   = thltendmn2   /nsamples
   !     ----------------------
   !     2.0  write the fields
   !           ----------------
@@ -394,7 +413,7 @@ contains
           '#--------------------------------------------------------------------------' &
           ,'#LEV RAD_FLX_HGHT  THL_HGHT  LW_UP        LW_DN        SW_UP       SW_DN       ' &
           ,'TL_LW_TEND   TL_SW_TEND   TL_LS_TEND   TL_TEND' &
-          ,'#    (M)    (M)      (W/M^2)      (W/M^2)      (W/M^2)      (W/M^2)      ' &
+          ,'#           (M)    (M)      (W/M^2)      (W/M^2)      (W/M^2)      (W/M^2)      ' &
           ,'(K/H)         (K/H)        (K/H)        (K/H)'
       do k=1,kmax
         write(ifoutput,'(I4,2F10.2,12E13.4)') &
@@ -407,7 +426,8 @@ contains
             thlswtendmn(k)*3600,&
             thlradlsmn(k) *3600,&
             thltendmn(k)  *3600,&
-            lwucamn(k),&
+            thltendmn2(k)  *3600,&
+            !lwucamn(k),&
             lwdcamn(k),&
             swucamn(k),&
             swdcamn(k)
@@ -450,10 +470,12 @@ contains
         vars(:, 6) = lwdmn
         vars(:, 7) = swumn
         vars(:, 8) = swdmn
-        vars(:, 9) = lwucamn
-        vars(:,10) = lwdcamn
-        vars(:,11) = swucamn
-        vars(:,12) = swdcamn
+        vars(:, 9) = swdirmn
+        vars(:,10) = swdifmn
+        vars(:,11) = lwucamn
+        vars(:,12) = lwdcamn
+        vars(:,13) = swucamn
+        vars(:,14) = swdcamn
        call writestat_nc(ncid_prof,nvar,ncname,vars(1:kmax,:),nrec_prof,kmax)
       end if
     end if ! end if(myid==0)
@@ -472,6 +494,7 @@ contains
     thlswtendmn = 0.0
     thlradlsmn  = 0.0
     thltendmn  = 0.0
+    thltendmn2  = 0.0
 
   end subroutine writeradstat
 

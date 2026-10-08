@@ -72,8 +72,10 @@ contains
   subroutine initsurface
 
     use modglobal,  only : i1, j1, i2, j2, itot, jtot, nsv, ifnamopt, fname_options, ifinput, cexpnr
-    use modraddata, only : iradiation,rad_shortw,irad_par,irad_user,irad_rrtmg
+    use modraddata, only : iradiation,rad_shortw,irad_par,irad_user,irad_rrtmg,albedo_rad
     use modmpi,     only : myid, comm3d, mpierr, my_real, mpi_logical, mpi_integer
+    use modcanopy, only : lcanopyeb
+    use modraddata
 
     implicit none
 
@@ -83,9 +85,9 @@ contains
     namelist/NAMSURFACE/ & !< Soil related variables
       isurf,tsoilav, tsoildeepav, phiwav, rootfav, &
       ! Land surface related variables
-      lmostlocal, lsmoothflux, lneutral, z0mav, z0hav, rsisurf2, Cskinav, lambdaskinav, albedoav, Qnetav, cvegav, Wlav, &
+      lmostlocal, lsmoothflux, lneutral, z0mav, z0hav, rsisurf2, Cskinav, lambdaskinav, albedoav_surf, Qnetav, cvegav, Wlav, &
       ! Jarvis-Steward related variables
-      rsminav, rssoilminav, LAIav, gDav, &
+      rsminav, rssoilminav, LAI_surfav, gDav, &
       ! Prescribed values for isurf 2, 3, 4
       z0, thls, ps, ustin, wtsurf, wqsurf, wsvsurf, &
       ! Heterogeneous variables
@@ -93,11 +95,11 @@ contains
       ! AGS variables
       lrsAgs, lCO2Ags,planttype, &
       ! Delay plant response in Ags
-      lrelaxgc, kgc, lrelaxci, kci, &
+      lrelaxgc_surf, kgc_surf, lrelaxci_surf, kci_surf, &
       ! Soil properties
       phi, phifc, phiwp, R10, &
       !2leaf AGS, sunlit/shaded
-      lsplitleaf
+      lsplitleaf,l3leaves,surfrad_meth
 
 
     ! 1    -   Initialize soil
@@ -132,14 +134,14 @@ contains
     call MPI_BCAST(rsisurf2     , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(Cskinav      , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(lambdaskinav , 1, MY_REAL, 0, comm3d, mpierr)
-    call MPI_BCAST(albedoav     , 1, MY_REAL, 0, comm3d, mpierr)
+    call MPI_BCAST(albedoav_surf, 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(Qnetav       , 1, MY_REAL, 0, comm3d, mpierr)
 
     call MPI_BCAST(rsminav      , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(rssoilminav  , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(cvegav       , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(Wlav         , 1, MY_REAL, 0, comm3d, mpierr)
-    call MPI_BCAST(LAIav        , 1, MY_REAL, 0, comm3d, mpierr)
+    call MPI_BCAST(LAI_surfav   , 1, MY_REAL, 0, comm3d, mpierr)
     call MPI_BCAST(gDav         , 1, MY_REAL, 0, comm3d, mpierr)
 
     call MPI_BCAST(z0         ,1,MY_REAL   ,0,comm3d,mpierr)
@@ -157,16 +159,18 @@ contains
     call MPI_BCAST(xpatches                   ,            1, MPI_INTEGER, 0, comm3d, mpierr)
     call MPI_BCAST(ypatches                   ,            1, MPI_INTEGER, 0, comm3d, mpierr)
     call MPI_BCAST(planttype                  ,            1, MPI_INTEGER, 0, comm3d, mpierr)
-    call MPI_BCAST(lrelaxgc                   ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
-    call MPI_BCAST(lrelaxci                   ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
-    call MPI_BCAST(kgc                        ,            1, MY_REAL    , 0, comm3d, mpierr)
-    call MPI_BCAST(kci                        ,            1, MY_REAL    , 0, comm3d, mpierr)
+    call MPI_BCAST(lrelaxgc_surf              ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
+    call MPI_BCAST(lrelaxci_surf              ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
+    call MPI_BCAST(kgc_surf                   ,            1, MY_REAL    , 0, comm3d, mpierr)
+    call MPI_BCAST(kci_surf                   ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(phi                        ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(phifc                      ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(phiwp                      ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(R10                        ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(lsplitleaf                 ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
-    
+    call MPI_BCAST(l3leaves                   ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
+    call MPI_BCAST(surfrad_meth                ,            1, MPI_INTEGER, 0, comm3d, mpierr)
+
     call MPI_BCAST(land_use(1:mpatch,1:mpatch),mpatch*mpatch, MPI_INTEGER, 0, comm3d, mpierr)
 
     if(lCO2Ags .and. (.not. lrsAgs)) then
@@ -175,8 +179,7 @@ contains
       lCO2Ags = .false.
     endif
     if(lsplitleaf .and. (.not. (rad_shortw .and. ((iradiation.eq.irad_par).or.(iradiation .eq. irad_user) .or. (iradiation .eq. irad_rrtmg))))) then
-      if(myid==0) stop "WARNING::: You set lsplitleaf to .true., but that needs direct and diffuse calculations. Make sure you enable rad_shortw"
-      if(myid==0) stop "WARNING::: Since there is no direct and diffuse radiation calculated in the atmopshere, we set lsplitleaf to .false."
+      if(myid==0) stop "WARNING::: You set lsplitleaf to .true., but that needs direct and diffuse calculations. Make sure you enable rad_shortw and choose right iradiation"
       lsplitleaf = .false.
     endif
 
@@ -415,11 +418,11 @@ contains
           rootfav      = 0
           Cskinav      = 0
           lambdaskinav = 0
-          albedoav     = 0
+          albedoav_surf     = 0
           Qnetav       = 0
           cvegav       = 0
           rsminav      = 0
-          LAIav        = 0
+          LAI_surfav        = 0
           gDav         = 0
           Wlav         = 0
 
@@ -463,11 +466,11 @@ contains
               rootfav(:)    = rootfav(:)   +  ( rootf_patch(:,i,j)    / ( xpatches * ypatches ) )
               Cskinav       = Cskinav      +  ( Cskin_patch(i,j)      / ( xpatches * ypatches ) )
               lambdaskinav  = lambdaskinav +  ( lambdaskin_patch(i,j) / ( xpatches * ypatches ) )
-              albedoav      = albedoav     +  ( albedo_patch(i,j)     / ( xpatches * ypatches ) )
+              albedoav_surf      = albedoav_surf     +  ( albedo_patch(i,j)     / ( xpatches * ypatches ) )
               Qnetav        = Qnetav       +  ( Qnet_patch(i,j)       / ( xpatches * ypatches ) )
               cvegav        = cvegav       +  ( cveg_patch(i,j)       / ( xpatches * ypatches ) )
               rsminav       = rsminav      +  ( rsmin_patch(i,j)      / ( xpatches * ypatches ) )
-              LAIav         = LAIav        +  ( LAI_patch(i,j)        / ( xpatches * ypatches ) )
+              LAI_surfav         = LAI_surfav        +  ( LAI_patch(i,j)        / ( xpatches * ypatches ) )
               gDav          = gDav         +  ( gD_patch(i,j)         / ( xpatches * ypatches ) )
               Wlav          = Wlav         +  ( Wl_patch(i,j)         / ( xpatches * ypatches ) )
 
@@ -484,7 +487,7 @@ contains
           wqsurf = 0
           wsvsurf(1:nsv) = 0
           if (.not. loldtable) then
-            albedoav  = 0
+            albedoav_surf  = 0
           endif
 
           z0mav        = 0
@@ -519,7 +522,7 @@ contains
               wqsurf = wqsurf + ( wq_patch(i,j)    / ( xpatches * ypatches ) )
               wsvsurf(1:nsv) = wsvsurf(1:nsv) + ( wsv_patch(1:nsv,i,j) / ( xpatches * ypatches ) )
               if (.not. loldtable) then
-                albedoav  = albedoav + ( albedo_patch(i,j) / ( xpatches * ypatches ) )
+                albedoav_surf  = albedoav_surf + ( albedo_patch(i,j) / ( xpatches * ypatches ) )
               endif
 
               z0mav  = z0mav  + ( z0mav_patch(i,j) / ( xpatches * ypatches ) )
@@ -545,7 +548,6 @@ contains
 
     endif
 
-
     if(isurf == 1) then
       if(tsoilav(1) == -1 .or. tsoilav(2) == -1 .or. tsoilav(3) == -1 .or. tsoilav(4) == -1) then
         stop "NAMSURFACE: tsoil is not set"
@@ -565,8 +567,8 @@ contains
       if(lambdaskinav == -1) then
         stop "NAMSURFACE: lambdaskinav is not set"
       end if
-      if(albedoav == -1) then
-        stop "NAMSURFACE: albedoav is not set"
+      if(albedoav_surf == -1) then
+        stop "NAMSURFACE: albedoav_surf is not set"
       end if
       if(Qnetav == -1) then
         stop "NAMSURFACE: Qnetav is not set"
@@ -581,8 +583,8 @@ contains
         print *,"WARNING: RSSOILMINAV is undefined... RSMINAV will be used as a proxy"
         rssoilminav = rsminav
       end if
-      if(LAIav == -1) then
-        stop "NAMSURFACE: LAIav is not set"
+      if(LAI_surfav == -1) then
+        stop "NAMSURFACE: LAI_surfav is not set"
       end if
       if(gDav == -1) then
         stop "NAMSURFACE: gDav is not set"
@@ -600,7 +602,7 @@ contains
     if(isurf <= 2) then
       allocate(ra(i2,j2))
 
-      ! CvH set initial values for rs and ra to be able to compute qskin
+      ! CvH set initial values for rs and ra to be able to compute qskin_surf
       ra = 50.
       if(isurf == 1) then
         rs = 100.
@@ -609,21 +611,18 @@ contains
       end if
     end if
 
-    allocate(albedo(i2,j2))
+    allocate(albedo_surf(i2,j2))
     allocate(z0m(i2,j2))
     allocate(z0h(i2,j2))
     allocate(obl(i2,j2))
-    allocate(tskin(i2,j2))
-    allocate(qskin(i2,j2))
+    allocate(tskin_surf(i2,j2))
+    allocate(qskin_surf(i2,j2))
     allocate(Cm(i2,j2))
     allocate(Cs(i2,j2))
 
-    if(rad_shortw .and. albedoav == -1) then
-      stop "NAMSURFACE: albedoav is not set"
-    end if
     if(iradiation == 1) then
-      if(albedoav == -1) then
-        stop "NAMSURFACE: albedoav is not set"
+      if(albedoav_surf == -1) then
+        stop "NAMSURFACE: albedoav_surf is not set"
       end if
       allocate(swdavn(i2,j2,nradtime))
       allocate(swuavn(i2,j2,nradtime))
@@ -635,7 +634,8 @@ contains
       lwuavn =  0.
     end if
 
-    albedo     = albedoav
+    albedo_surf     = albedoav_surf
+
     if(lhetero) then
       do j=1,j2
         tempy=patchynr(j)
@@ -644,7 +644,7 @@ contains
           z0m(i,j)   = z0mav_patch(tempx,tempy)
           z0h(i,j)   = z0hav_patch(tempx,tempy)
           if (.not. loldtable) then
-            albedo(i,j) = albedo_patch(tempx,tempy)
+            albedo_surf(i,j) = albedo_patch(tempx,tempy)
             if(isurf .ne. 1) then
               rs(i,j)     = rsisurf2_patch(tempx,tempy)
             endif
@@ -655,6 +655,8 @@ contains
       z0m        = z0mav
       z0h        = z0hav
     endif
+
+    if (iradiation /= 4) albedo_rad(:,:) = albedo_surf(:,:)
 
     ! 3. Initialize surface layer
     allocate(ustar   (i2,j2))
@@ -684,7 +686,29 @@ contains
       if (lsplitleaf) then
         allocate(PARdirField   (2:i1,2:j1))
         allocate(PARdifField   (2:i1,2:j1))
-      endif  
+        allocate(PARleaf_shad(nz_gauss))
+        allocate(PARleaf_allsun(nz_gauss))
+        allocate(PARleaf_sun(nz_gauss,nangle_gauss))
+        allocate(swleaf_shad(nz_gauss,n_bands_sw))
+        allocate(swleaf_allsun(nz_gauss,n_bands_sw))
+        allocate(swleaf_sun(nz_gauss,nangle_gauss,n_bands_sw))
+        allocate(fSL(nz_gauss))
+        allocate(gshad_old(2:i1,2:j1,nz_gauss))
+        allocate(albdir_lsplit(2:i1,2:j1,n_bands_sw))
+        allocate(albdif_lsplit(2:i1,2:j1,n_bands_sw))
+        allocate(albswd_lsplit(2:i1,2:j1,n_bands_sw))
+        allocate(swdir_lsplit(2:i1,2:j1,nz_gauss,n_bands_sw))
+        allocate(swdif_lsplit(2:i1,2:j1,nz_gauss,n_bands_sw))
+        allocate(swu_lsplit(2:i1,2:j1,nz_gauss,n_bands_sw))
+        allocate(PARdir_lsplit(nz_gauss))
+        allocate(PARdif_lsplit(nz_gauss))
+        allocate(PARu_lsplit  (nz_gauss))
+        if (l3leaves) then
+          allocate(gleafsun_old(2:i1,2:j1,nz_gauss,nangle_gauss))
+        else
+          allocate(gsun_old(2:i1,2:j1,nz_gauss))
+        endif
+      endif
     endif
     return
   end subroutine initsurface
@@ -693,8 +717,10 @@ contains
   subroutine surface
     use modglobal,  only : i1,i2,j1,j2,fkar,zf,cu,cv,nsv,ijtot,rd,rv
     use modfields,  only : thl0, qt0, u0, v0, u0av, v0av
-    use modmpi,     only : my_real, mpierr, comm3d, mpi_sum, excj, excjs, mpi_integer
+    use modmpi,     only : my_real, mpierr, comm3d, mpi_sum, excj, excjs, mpi_integer,myid
     use moduser,    only : surf_user
+    use modraddata, only : tskin_rad,albedo_rad,qskin_rad
+    use modcanopy,  only : lcanopyeb
     implicit none
 
     integer  :: i, j, n, patchx, patchy
@@ -797,9 +823,9 @@ contains
       do j = 2, j1
         do i = 2, i1
           if(lhetero) then
-            tskin(i,j) = thls_patch(patchxnr(i),patchynr(j))
+            tskin_surf(i,j) = thls_patch(patchxnr(i),patchynr(j))
           else
-            tskin(i,j) = thls
+            tskin_surf(i,j) = thls
           endif
         end do
       end do
@@ -834,8 +860,8 @@ contains
             endif
           end if
 
-          thlflux(i,j) = - ( thl0(i,j,1) - tskin(i,j) ) / ra(i,j)
-          qtflux(i,j) = - (qt0(i,j,1)  - qskin(i,j)) / ra(i,j)
+          thlflux(i,j) = - ( thl0(i,j,1) - tskin_surf(i,j) ) / ra(i,j)
+          qtflux(i,j) = - (qt0(i,j,1)  - qskin_surf(i,j)) / ra(i,j)
 
           if(lhetero) then
             do n=1,nsv
@@ -851,7 +877,7 @@ contains
 
           phimzf = phim(zf(1)/obl(i,j))
           phihzf = phih(zf(1)/obl(i,j))
-          
+
           dudz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(upcu/horv)
           dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(vpcv/horv)
           dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*zf(1))
@@ -884,7 +910,7 @@ contains
 
             phimzf = phim(zf(1)/obl(i,j))
             phihzf = phih(zf(1)/obl(i,j))
-            
+
             upcu  = 0.5 * (u0(i,j,1) + u0(i+1,j,1)) + cu
             vpcv  = 0.5 * (v0(i,j,1) + v0(i,j+1,1)) + cv
             horv  = sqrt(upcu ** 2. + vpcv ** 2.)
@@ -967,10 +993,10 @@ contains
               svflux(i,j,n) = wsvsurf(n)
             enddo
           endif
-         
+
           phimzf = phim(zf(1)/obl(i,j))
           phihzf = phih(zf(1)/obl(i,j))
-          
+
           dudz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(upcu/horv)
           dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(vpcv/horv)
           dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*zf(1))
@@ -979,14 +1005,14 @@ contains
           Cs(i,j) = fkar ** 2. / ((log(zf(1) / z0m(i,j)) - psim(zf(1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j))) * &
           (log(zf(1) / z0h(i,j)) - psih(zf(1) / obl(i,j)) + psih(z0h(i,j) / obl(i,j))))
 
-          tskin(i,j) = min(max(thlflux(i,j) / (Cs(i,j) * horv),-10.),10.)  + thl0(i,j,1)
-          qskin(i,j) = min(max( qtflux(i,j) / (Cs(i,j) * horv),-5e-2),5e-2) + qt0(i,j,1)
+          tskin_surf(i,j) = min(max(thlflux(i,j) / (Cs(i,j) * horv),-10.),10.)  + thl0(i,j,1)
+          qskin_surf(i,j) = min(max( qtflux(i,j) / (Cs(i,j) * horv),-5e-2),5e-2) + qt0(i,j,1)
 
-          thlsl      = thlsl + tskin(i,j)
-          qtsl       = qtsl  + qskin(i,j)
+          thlsl      = thlsl + tskin_surf(i,j)
+          qtsl       = qtsl  + qskin_surf(i,j)
           if (lhetero) then
-            lthls_patch(patchx,patchy) = lthls_patch(patchx,patchy) + tskin(i,j)
-            lqts_patch(patchx,patchy)  = lqts_patch(patchx,patchy)  + qskin(i,j)
+            lthls_patch(patchx,patchy) = lthls_patch(patchx,patchy) + tskin_surf(i,j)
+            lqts_patch(patchx,patchy)  = lqts_patch(patchx,patchy)  + qskin_surf(i,j)
             Npatch(patchx,patchy)      = Npatch(patchx,patchy)      + 1
           endif
         end do
@@ -1021,6 +1047,9 @@ contains
     ! Transfer ustar to neighbouring cells
     call excj( ustar  , 1, i2, 1, j2, 1,1)
 
+    tskin_rad (:,:) = tskin_surf (:,:)
+    qskin_rad (:,:) = qskin_surf (:,:)
+
     return
 
   end subroutine surface
@@ -1046,12 +1075,12 @@ contains
       do j = 2, j1
         do i = 2, i1
           exner      = (ps / pref0)**(rd/cp)
-          tsurf      = tskin(i,j) * exner
+          tsurf      = tskin_surf(i,j) * exner
           es         = es0 * exp(at*(tsurf-tmelt) / (tsurf-bt))
           qsatsurf   = rd / rv * es / ps
           surfwet    = ra(i,j) / (ra(i,j) + rs(i,j))
-          qskin(i,j) = surfwet * qsatsurf + (1. - surfwet) * qt0(i,j,1)
-          qtsl       = qtsl + qskin(i,j)
+          qskin_surf(i,j) = surfwet * qsatsurf + (1. - surfwet) * qt0(i,j,1)
+          qtsl       = qtsl + qskin_surf(i,j)
         end do
       end do
 
@@ -1068,13 +1097,13 @@ contains
             patchx     = patchxnr(i)
             patchy     = patchynr(j)
             exner      = (ps_patch(patchx,patchy) / pref0)**(rd/cp)
-            tsurf      = tskin(i,j) * exner
+            tsurf      = tskin_surf(i,j) * exner
             es         = es0 * exp(at*(tsurf-tmelt) / (tsurf-bt))
             qsatsurf   = rd / rv * es / ps_patch(patchx,patchy)
             surfwet    = ra(i,j) / (ra(i,j) + rs(i,j))
-            qskin(i,j) = surfwet * qsatsurf + (1. - surfwet) * qt0(i,j,1)
+            qskin_surf(i,j) = surfwet * qsatsurf + (1. - surfwet) * qt0(i,j,1)
 
-            lqts_patch(patchx,patchy) = lqts_patch(patchx,patchy) + qskin(i,j)
+            lqts_patch(patchx,patchy) = lqts_patch(patchx,patchy) + qskin_surf(i,j)
             Npatch(patchx,patchy)     = Npatch(patchx,patchy)     + 1
           enddo
         enddo
@@ -1116,7 +1145,7 @@ contains
       do i=2,i1
         do j=2,j1
           thv     =   thl0(i,j,1)  * (1. + (rv/rd - 1.) * qt0(i,j,1))
-          thvsl   =   tskin(i,j)   * (1. + (rv/rd - 1.) * qskin(i,j))
+          thvsl   =   tskin_surf(i,j)   * (1. + (rv/rd - 1.) * qskin_surf(i,j))
           upcu    =   0.5 * (u0(i,j,1) + u0(i+1,j,1)) + cu
           vpcv    =   0.5 * (v0(i,j,1) + v0(i,j+1,1)) + cv
           horv2   =   upcu ** 2. + vpcv ** 2.
@@ -1143,7 +1172,7 @@ contains
                 if(Rib > 0) L = 0.01
                 if(Rib < 0) L = -0.01
              end if
-             
+
              do while (.true.)
                 iter    = iter + 1
                 Lold    = L
@@ -1282,7 +1311,7 @@ contains
           if(Rib > 0) L = 0.01
           if(Rib < 0) L = -0.01
        end if
-       
+
        do while (.true.)
           iter    = iter + 1
           Lold    = L
@@ -1359,7 +1388,7 @@ contains
 
   ! stability function Phi for momentum.
   ! Many functional forms of Phi have been suggested, see e.g. Optis 2015
-  ! Phi and Psi above are related by an integral and should in principle match, 
+  ! Phi and Psi above are related by an integral and should in principle match,
   ! currently they do not.
   ! FJ 2018: For very stable situations, zeta > 1 add cap to phi - the linear expression is valid only for zeta < 1
  function phim(zeta)
@@ -1379,7 +1408,7 @@ contains
     return
   end function phim
 
-   ! stability function Phi for heat.  
+   ! stability function Phi for heat.
  function phih(zeta)
     implicit none
     real             :: phih
@@ -1397,7 +1426,7 @@ contains
     return
   end function phih
 
-  
+
   function E1(x)
   implicit none
     real             :: E1
@@ -1409,7 +1438,7 @@ contains
     do k=1,99
       !E1sum = E1sum + (-1.0) ** (k + 0.0) * x ** (k + 0.0) / ( (k + 0.0) * factorial(k) )
        E1sum = E1sum + (-1.0 * x) ** k / ( k * factorial(k) )  ! FJ changed this for compilation with cray fortran
-                                                          
+
     end do
     E1 = -0.57721566490153286060 - log(x) - E1sum
 
@@ -1540,11 +1569,11 @@ contains
     allocate(rssoilmin(i2,j2))
     allocate(cveg(i2,j2))
     allocate(cliq(i2,j2))
-    allocate(tendskin(i2,j2))
-    allocate(tskinm(i2,j2))
+    allocate(tendskin_surf(i2,j2))
+    allocate(tskinm_surf(i2,j2))
     allocate(Cskin(i2,j2))
     allocate(lambdaskin(i2,j2))
-    allocate(LAI(i2,j2))
+    allocate(LAI_surf(i2,j2))
     allocate(gD(i2,j2))
     allocate(Wl(i2,j2))
     allocate(Wlm(i2,j2))
@@ -1565,7 +1594,7 @@ contains
           lambdaskin (i,j) = lambdaskin_patch(tempx,tempy)
           rsmin      (i,j) = rsmin_patch     (tempx,tempy)
           rssoilmin  (i,j) = rsmin_patch     (tempx,tempy)
-          LAI        (i,j) = LAI_patch       (tempx,tempy)
+          LAI_surf        (i,j) = LAI_patch       (tempx,tempy)
           gD         (i,j) = gD_patch        (tempx,tempy)
           cveg       (i,j) = cveg_patch      (tempx,tempy)
           Wl         (i,j) = Wl_patch        (tempx,tempy)
@@ -1614,12 +1643,14 @@ contains
       lambdaskin = lambdaskinav
       rsmin      = rsminav
       rssoilmin  = rssoilminav
-      LAI        = LAIav
+      LAI_surf        = LAI_surfav
       gD         = gDav
       cveg       = cvegav
       Wl         = Wlav
     endif
     cliq       = 0.
+
+
   end subroutine initlsm
 
 
@@ -1628,12 +1659,13 @@ contains
 
     use modglobal, only : pref0,boltz,cp,rd,rhow,rlv,i1,j1,rdt,ijtot,rk3step,nsv,xtime,rtimee,xday,xlat,xlon
     use modfields, only : ql0,qt0,thl0,rhof,presf,svm
-    use modraddata,only : iradiation,useMcICA,swd,swu,lwd,lwu,irad_par,swdir,swdif,zenith
+    use modraddata,only : iradiation,useMcICA,swd,swu,lwd,lwu,irad_par,swdir,swdif,zenith,albedo_rad,tskin_rad
     use modmpi, only :comm3d,my_real,mpi_sum,mpierr,mpi_integer,myid
     use modmicrodata, only : imicro,imicro_bulk
+    use modcanopy, only : canopyeb,lcanopyeb,tleaf_old_set,cican_old_set,gccan_old_set,lrelaxgc_can,lrelaxci_can
 
     real     :: f1, f2, f3, f4 ! Correction functions for Jarvis-Stewart
-    integer  :: i, j, k, itg
+    integer  :: i, j, k, itg, ib
     integer  :: patchx, patchy
     real     :: rk3coef,thlsl
 
@@ -1642,20 +1674,20 @@ contains
     real     :: fH, fLE, fLEveg, fLEsoil, fLEliq, LEveg, LEsoil, LEliq
     real     :: Wlmx
 
-    real     :: CO2ags, CO2comp, gm, fmin0, fmin, esatsurf, Ds, D0, cfrac, co2abs, ci !Variables for AGS
-    real     :: Ammax, betaw, fstr, Am, Rdark, PAR, alphac, tempy, An, AGSa1, Dstar, gcco2 !Variables for AGS
-    real     :: rsAgs, rsCO2, fw, Resp, wco2 !Variables for AGS
-    real     :: Ag, PARdir, PARdif !Variables for 2leaf AGS
-    real     :: MW_Air = 28.97
-    real     :: MW_CO2 = 44
- 
-    real     :: sinbeta, kdrbl, kdf, kdr, ref, ref_dir
-    real     :: iLAI, fSL
-    real     :: PARdfU, PARdfD, PARdfT, PARdrU, PARdrD, PARdrT, dirPAR, difPAR
-    real     :: HdfT, HdrT, dirH, Hshad, Hsun(nr_gauss), Fshad, Fsun, gshad, gsun
-    real     :: Hleaf(nr_gauss+1), Fleaf(nr_gauss+1), gleaf(nr_gauss+1), Agl(nr_gauss+1)
-    real     :: Fnet(nr_gauss), gnet(nr_gauss)
-    real     :: minsinbeta = 1.e-10
+    real     :: CO2comp, fmin, Ds, D0, co2abs, ci, fstr, Am, Rdark, alphac !Variables for AGS
+    real     :: PAR, tempy, AGSa1, Dstar !Variables for AGS 1-leaf upscaling
+    real     :: An, gcco2,rsAgs, rsCO2 !Variables for AGS
+    real     :: fw, Resp, wco2 !Variables for AGS
+
+    real     :: Fshad, gshad
+    real     :: Fsun , gsun
+    real     :: Fleafsun(nangle_gauss),gleafsun(nangle_gauss)
+    real     :: Fnet(nz_gauss), gnet(nz_gauss)
+    integer  :: angle
+    real     :: absPAR_ground(n_bands_sw)! not used, but needed due to function definition
+    ! vars needed for canopyeb
+    real     :: fSL_bot, rs_leafshad_bot,rs_leafsun_bot,Fco2_can_bot
+    real     :: abssw_ground(n_bands_sw) ! absorbed SW radiation by vegetated ground, only used if lcanopyeb
 
     real     :: lthls_patch(xpatches,ypatches)
     integer  :: Npatch(xpatches,ypatches), SNpatch(xpatches,ypatches)
@@ -1663,7 +1695,9 @@ contains
     real     :: local_wco2av
     real     :: local_Anav
     real     :: local_gcco2av
+    real     :: local_alb_canav
     real     :: local_Respav
+
 
     patchx = 0
     patchy = 0
@@ -1691,11 +1725,14 @@ contains
     wco2av       = 0.0
     Anav         = 0.0
     gcco2av      = 0.0
+    alb_canav    = 0.0
     Respav       = 0.0
     local_wco2av = 0.0
     local_Anav   = 0.0
     local_gcco2av= 0.0
+    local_alb_canav= 0.0
     local_Respav = 0.0
+    abssw_ground=0.0
 
     if (lrsAgs) then
       AnField    = 0.0
@@ -1759,40 +1796,41 @@ contains
         end if
 
         ! 2.1   -   Calculate the surface resistance
-        ! Stomatal opening as a function of incoming short wave radiation
-        if (iradiation > 0) then
-          f1  = 1. / min(1., (0.004 * max(0.,-swdav) + 0.05) / (0.81 * (0.004 * max(0.,-swdav) + 1.)))
-        else
-          f1  = 1.
-        end if
+        if (.not. lrsAgs) then
+           ! Stomatal opening as a function of incoming short wave radiation
+           if (iradiation > 0) then
+             f1  = 1. / min(1., (0.004 * max(0.,-swdav) + 0.05) / (0.81 * (0.004 * max(0.,-swdav) + 1.)))
+           else
+             f1  = 1.
+           end if
 
-        ! Soil moisture availability
-        f2  = (phifc - phiwp) / (phitot(i,j) - phiwp)
-        ! Prevent f2 becoming less than 1
-        f2  = max(f2, 1.)
-        ! Put upper boundary on f2 for cases with very dry soils
-        f2  = min(1.e8, f2)
+           ! Soil moisture availability
+           f2  = (phifc - phiwp) / (phitot(i,j) - phiwp)
+           ! Prevent f2 becoming less than 1
+           f2  = max(f2, 1.)
+           ! Put upper boundary on f2 for cases with very dry soils
+           f2  = min(1.e8, f2)
 
-        ! Response of stomata to vapor deficit of atmosphere
-        esat = 0.611e3 * exp(17.2694 * (thl0(i,j,1) - 273.16) / (thl0(i,j,1) - 35.86))
-        if(lhetero) then
-          e    = qt0(i,j,1) * ps_patch(patchx,patchy) / 0.622
-        else
-          e    = qt0(i,j,1) * ps / 0.622
-        endif
+           ! Response of stomata to vapor deficit of atmosphere
+           esat = 0.611e3 * exp(17.2694 * (thl0(i,j,1) - 273.16) / (thl0(i,j,1) - 35.86))
+           if(lhetero) then
+             e    = qt0(i,j,1) * ps_patch(patchx,patchy) / 0.622
+           else
+             e    = qt0(i,j,1) * ps / 0.622
+           endif
 
-        f3   = 1. / exp(-gD(i,j) * (esat - e) / 100.)
+           f3   = 1. / exp(-gD(i,j) * (esat - e) / 100.)
 
-        ! Response to temperature
-        exnera  = (presf(1) / pref0) ** (rd/cp)
-        Tatm    = exnera * thl0(i,j,1) + (rlv / cp) * ql0(i,j,1)
-        f4      = 1./ (1. - 0.0016 * (298.0 - Tatm) ** 2.)
+           ! Response to temperature
+           exnera  = (presf(1) / pref0) ** (rd/cp)
+           Tatm    = exnera * thl0(i,j,1) + (rlv / cp) * ql0(i,j,1)
+           f4      = 1./ (1. - 0.0016 * (298.0 - Tatm) ** 2.)
 
-        rsveg(i,j)  = rsmin(i,j) / LAI(i,j) * f1 * f2 * f3! * f4 Not considered anymore
+           rsveg(i,j)  = rsmin(i,j) / LAI_surf(i,j) * f1 * f2 * f3! * f4 Not considered anymore
 
-        ! 2.1a  - Recalculate vegetation resistance using AGS
 
-        if (lrsAgs) then
+        else !(lrsAgs) then
+         ! 2.1a  - Recalculate vegetation resistance using AGS
           if (.not. linags) then !initialize AGS
             if(nsv .le. 0) then
               if (myid == 0) then
@@ -1827,153 +1865,156 @@ contains
               indCO2 = 1
             endif !Is chemistry or bulk_micro on?
             linags = .true.
+
           endif !linags
+          if (lsplitleaf) then
+            swdir_TOV = max(0.1,abs(swdir(i,j,1)))
+            swdif_TOV = max(0.1,abs(swdif(i,j,1)))
+            call canopyrad_sw_GvL94(nz_gauss,LAI_surf(i,j),LAI_surf(i,j)*LAI_g,swdir_TOV,swdif_TOV,1.0,& ! in!
+                 swleaf_shad,swleaf_sun,fSL,&
+                 albdir_lsplit(i,j,:),albdif_lsplit(i,j,:),albswd_lsplit(i,j,:),&
+                 swdir_lsplit(i,j,:nz_gauss,:),swdif_lsplit(i,j,:nz_gauss,:),swu_lsplit(i,j,:nz_gauss,:),absPAR_ground(:))! could be coupled to radiation
+            !previously we assumed SW = 2.0*PAR, now we assume SW = 1/0.44*PAR
+            PARdir_lsplit(:nz_gauss) = 0.
+            PARdif_lsplit(:nz_gauss) = 0.
+            PARu_lsplit(:nz_gauss) = 0.
+            PARleaf_shad(:nz_gauss) = 0.
+            PARleaf_sun(:nz_gauss,:) = 0.
 
-          CO2ags  = svm(i,j,1,indCO2)/1000.0  !From ppb (usual DALES standard) to ppm
+            do ib = 1, n_bands_sw
+                if (canrad_bands_sw(ib)%spectral_type == 2) then
+                    PARdir_lsplit(:nz_gauss) = PARdir_lsplit(:nz_gauss) + swdir_lsplit(i,j,:nz_gauss, ib)
+                    PARdif_lsplit(:nz_gauss) = PARdif_lsplit(:nz_gauss) + swdif_lsplit(i,j,:nz_gauss, ib)
+                    PARu_lsplit(:nz_gauss)  = PARu_lsplit(:nz_gauss)  + swu_lsplit  (i,j,:nz_gauss, ib)
+                    PARleaf_shad(:nz_gauss) = PARleaf_shad(:nz_gauss) + swleaf_shad(:nz_gauss, ib)
+                    PARleaf_sun(:nz_gauss,:) = PARleaf_sun(:nz_gauss,:) + swleaf_sun(:nz_gauss,:, ib)
+                end if
+            end do
 
-          ! Calculate surface resistances using the plant physiological (A-gs) model
-          ! Calculate the CO2 compensation concentration
-          CO2comp = rhof(1) * CO2comp298 * Q10CO2 ** (0.1 * ( thl0(i,j,1) - 298.0 ) )
 
-          ! Calculate the mesophyll conductance
-          gm       = gm298 * Q10gm ** (0.1 * ( thl0(i,j,1) - 298.0) ) / ( (1. + exp(0.3 * ( T1gm - thl0(i,j,1) ))) * (1. + exp(0.3 * (thl0(i,j,1) - T2gm))))
-          gm       = gm / 1000   ! conversion from mm s-1 to m s-1
 
-          ! calculate CO2 concentration inside the leaf (ci)
-          fmin0    = gmin/nuco2q - (1.0/9.0) * gm
-          fmin     = (-fmin0 + ( fmin0 ** 2.0 + 4 * gmin/nuco2q * gm ) ** (0.5)) / (2. * gm)
+            do itg = 1,nz_gauss
+              !shaded
+              call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j),  & ! in
+                         phitot(i,j),PARleaf_shad(itg), & ! in
+                         lrelaxgc_surf,gcsurf_old_set,kgc_surf,gshad_old(i,j,itg),rk3coef, & ! in
+                         lrelaxci_surf,cisurf_old_set,kci_surf,ci_old(i,j), & ! in
+                         gshad,Fshad,ci,&                                  !out
+                         fstr,Am,Rdark,alphac,co2abs,CO2comp,Ds,D0,fmin)   !out
+              !sunny
+              if (l3leaves) then      ! 3 angles for sunny leaves
+                do angle=1,nangle_gauss
+                  call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j), & ! in
+                             phitot(i,j),PARleaf_sun(itg,angle),  & ! in
+                             lrelaxgc_surf,gcsurf_old_set,kgc_surf,gleafsun_old(i,j,itg,angle),rk3coef, & ! in
+                             lrelaxci_surf,cisurf_old_set,kci_surf,ci_old(i,j), & ! in
+                             gleafsun(angle),Fleafsun(angle),ci,                &   !out
+                             fstr,Am,Rdark,alphac,co2abs,CO2comp,Ds,D0,fmin) !out, not needed here
+                end do
+                if (lrelaxgc_surf) then
+                  if (gcsurf_old_set .and. rk3step ==3) then
+                    gshad_old(i,j,itg) = gshad
+                    gleafsun_old(i,j,itg,:) = gleafsun(:)
+                  else if (.not. gcsurf_old_set)then
+                    gshad_old(i,j,itg) = gshad
+                    gleafsun_old(i,j,itg,:) = gleafsun(:)
+                  endif
+                endif
+                Fsun   = sum(weight_g * Fleafsun(1:nangle_gauss))
+                gsun   = sum(weight_g * gleafsun(1:nangle_gauss))
+              else ! angles PAR are averaged
+                PARleaf_allsun   = sum(weight_g * PARleaf_sun(itg,1:nangle_gauss), dim=1)
+                call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j), & ! in
+                           phitot(i,j),PARleaf_allsun(itg), & ! in
+                           lrelaxgc_surf,gcsurf_old_set,kgc_surf,gsun_old(i,j,itg),rk3coef,& !
+                           lrelaxci_surf,cisurf_old_set,kci_surf,ci_old(i,j),& !
+                           gsun,Fsun,ci, &
+                           fstr,Am,Rdark,alphac,co2abs,CO2comp,Ds,D0,fmin)
+                if (lrelaxgc_surf) then
+                  if (gcsurf_old_set .and. rk3step ==3) then
+                    gshad_old(i,j,itg) = gshad
+                    gsun_old(i,j,itg) = gsun
+                  else if (.not. gcsurf_old_set) then
+                    gshad_old(i,j,itg) = gshad
+                    gsun_old(i,j,itg) = gsun
+                  endif
+                endif
+              end if ! l3leaves
+              Fnet(itg)  = Fsun * fSL(itg) + Fshad * (1 - fSL(itg))
+              gnet(itg)  = gsun * fSL(itg) + gshad * (1 - fSL(itg))
+            end do
 
-          esatsurf = 0.611e3 * exp(17.2694 * (tskin(i,j) - 273.16) / (tskin(i,j) - 35.86))
-          Ds       = (esatsurf - e) / 1000.0 ! In kPa
-          D0       = (f0 - fmin) / ad
-
-          cfrac    = f0 * (1.0 - Ds/D0) + fmin * (Ds/D0)
-          co2abs   = CO2ags * (MW_CO2/MW_Air) * rhof(1)
-
-          if (lrelaxci) then
-            if (ci_old_set) then
-              ci_inf        = cfrac * (co2abs - CO2comp) + CO2comp
-              ci            = ci_old(i,j) + min(kci*rk3coef, 1.0) * (ci_inf - ci_old(i,j))
-              if (rk3step  == 3) then
+            An       = LAI_surf(i,j) * sum(weight_g * Fnet) ! temporary An
+            gcco2    = LAI_surf(i,j) * sum(weight_g * gnet)
+            if (lrelaxci_surf) then
+              if (cisurf_old_set .and. rk3step ==3) then
+                ci_old(i,j) = ci
+              else if (.not. gcsurf_old_set)then
                 ci_old(i,j) = ci
               endif
-            else
-              ci            = cfrac * (co2abs - CO2comp) + CO2comp
-              ci_old(i,j)   = ci
             endif
-          else
-            ci              = cfrac * (co2abs - CO2comp) + CO2comp
-          endif
+          else ! lsplitleaf
+            if (lcanopyeb) then
+            ! move to the canopy module and rewrite ,among others,swd modified by canopy and needed for surface
+              call canopyeb(i,j,ps,rk3coef,abssw_ground)           ! in
+            endif ! lcanopyeb
+             ! and for understory vegetation:
 
-          ! Calculate maximal gross primary production in high light conditions (Ag)
-          Ammax    = Ammax298 * Q10Am ** ( 0.1 * ( thl0(i,j,1) - 298.0) ) / ( (1.0 + exp(0.3 * ( T1Am - thl0(i,j,1) ))) * (1. + exp(0.3 * (thl0(i,j,1) - T2Am))) )
+            !upscaling following Ronda et al
+            PAR       = 0.
+            do ib = 1, n_bands_sw
+                if (canrad_bands_sw(ib)%spectral_type == 2) then
+                    PAR = PAR + abssw_ground(ib)
+                end if
+            end do
+            PAR = max(0.1, PAR)
 
-          ! Calculate the effect of soil moisture stress on gross assimilation rate
-          betaw    = max(1.0e-3,min(1.0,(phitot(i,j)-phiwp)/(phifc-phiwp)))
+            call f_Ags(svm(i,j,1,indCO2),qt0(i,j,1),rhof(1),thl0(i,j,1),ps,tskinm_surf(i,j),& ! in
+                       phitot(i,j),PAR, & ! in
+                       lrelaxgc_surf,gcsurf_old_set,kgc_surf,gc_old(i,j),rk3coef,   & ! in
+                       lrelaxci_surf,cisurf_old_set,kci_surf,ci_old(i,j),           & ! in
+                       gshad,Fshad,ci, & ! first 2 are irrelevant here
+                       fstr,Am,Rdark,alphac,co2abs,CO2comp,Ds,D0,fmin) ! out
+          ! Calculate upscaling from leaf to canopy: net flow  CO2 into the plant (An)
+            AGSa1    = 1.0 / (1 - f0)
+            Dstar    = D0 / (AGSa1 * (f0 - fmin))
 
-          ! Calculate stress function
-          fstr     = betaw
-
-          ! Calculate gross assimilation rate (Am)
-          Am       = Ammax * (1 - exp( -(gm * (ci - CO2comp) / Ammax) ) )
-
-          Rdark    = (1.0/9) * Am
-
-          !PAR      = 0.40 * max(0.1,-swdav * cveg(i,j))
-          PAR      = 0.50 * max(0.1,abs(swdav)) !Increase PAR to 50 SW
-          if (lsplitleaf) then
-            PARdir   = 0.50 * max(0.1,abs(swdir(i,j,1)))
-            PARdif   = 0.50 * max(0.1,abs(swdif(i,j,1)))
-          endif
-
-          ! Calculate the light use efficiency
-          alphac   = alpha0 * (co2abs  - CO2comp) / (co2abs + 2 * CO2comp)
-
-          if(lsplitleaf) then
-            sinbeta  = max(zenith(xtime*3600 + rtimee,xday,xlat,xlon), minsinbeta)
-            kdrbl    = 0.5 / sinbeta                                     ! Direct radiation extinction coefficient for black leaves
-            kdf      = kdfbl * sqrt(1.0-sigma)
-            kdr      = kdrbl * sqrt(1.0-sigma)
-            ref      = (1.0 - sqrt(1.0-sigma)) / (1.0 + sqrt(1.0-sigma)) ! Reflection coefficient
-            ref_dir  = 2 * ref / (1.0 + 1.6 * sinbeta)
-
-            do itg = 1, nr_gauss ! loop over the different LAI locations
-              iLAI   = LAI(i,j) * LAI_g(itg)   ! Integrated LAI between here and canopy top; Gaussian distributed
-              fSL    = exp(-kdrbl * iLAI)      ! Fraction of sun-lit leaves
-
-              PARdfD = PARdif * (1.0-ref)     * exp(-kdf * iLAI    )     ! Total downward PAR due to diffuse radiation at canopy top
-              PARdrD = PARdir * (1.0-ref_dir) * exp(-kdr * iLAI    )     ! Total downward PAR due to direct radiation at canopy top
-              PARdfU = PARdif * (1.0-ref)     * exp(-kdf * LAI(i,j)) * albedo(i,j) * (1.0-ref) * exp(-kdf * (LAI(i,j)-iLAI)) ! Total upward (reflected) PAR that originates as diffuse radiation
-              PARdrU = PARdir * (1.0-ref_dir) * exp(-kdr * LAI(i,j)) * albedo(i,j) * (1.0-ref) * exp(-kdf * (LAI(i,j)-iLAI)) ! Total upward (reflected) PAR that originates as direct radiation
-              PARdfT = PARdfD + PARdfU                                   ! Total PAR due to diffuse radiation at canopy top
-              PARdrT = PARdrD + PARdrU                                   ! Total PAR due to direct radiation at canopy top
-
-              dirPAR = (1.0-sigma) * PARdir * fSL                        ! Purely direct PAR (can only be downward)
-              difPAR = PARdfT + PARdrT - dirPAR                          ! Total diffuse radiation
-
-              HdfT   = kdf * PARdfD + kdf * PARdfU
-              HdrT   = kdr * PARdrD + kdf * PARdrU
-              dirH   = kdrbl * dirPAR
-              Hshad  = HdfT + HdrT - dirH
-
-              Hsun   = Hshad + angle_g * (1.0-sigma) * kdrbl * PARdir / sum(angle_g * weight_g)
-
-              Hleaf(1)              = Hshad
-              Hleaf(2:(nr_gauss+1)) = Hsun
-
-              Agl    = fstr * (Am + Rdark) * (1 - exp(-alphac*Hleaf/(Am + Rdark)))
-              gleaf  = gmin/nuco2q +  Agl/(co2abs-ci)
-              !Fleaf  = -(co2abs - ci) / (ra(i,j) + 1.0 / gleaf)
-              Fleaf  = Agl - Rdark
-
-              Fshad  = Fleaf(1)
-              Fsun   = sum(weight_g * Fleaf(2:(nr_gauss+1)))
-              gshad  = gleaf(1)
-              gsun   = sum(weight_g * gleaf(2:(nr_gauss+1)))
-
-              Fnet(itg) = Fsun * fSL + Fshad * (1 - fSL)
-              gnet(itg) = gsun * fSL + gshad * (1 - fSL)
-
-            end do !itg
-
-            An       = LAI(i,j) * sum(weight_g * Fnet)
-            gc_inf   = LAI(i,j) * sum(weight_g * gnet)
-
-          else !lsplitleaf
-          
-          ! Calculate upscaling from leaf to canopy: net flow CO2 into the plant (An)
-          AGSa1    = 1.0 / (1 - f0)
-          Dstar    = D0 / (AGSa1 * (f0 - fmin))
-
-          tempy    = alphac * Kx * PAR / (Am + Rdark)
-          An       = (Am + Rdark) * (1 - 1.0 / (Kx * LAI(i,j)) * (E1(tempy * exp(-Kx*LAI(i,j))) - E1(tempy)))
-          gc_inf    = LAI(i,j) * (gmin/nuco2q + AGSa1 * fstr * An / ((co2abs - CO2comp) * (1 + Ds / Dstar)))
-
-          endif !lsplitleaf
-
-
-          if (lrelaxgc) then
-            if (gc_old_set) then
-              gcco2       = gc_old(i,j) + min(kgc*rk3coef, 1.0) * (gc_inf - gc_old(i,j))
-              if (rk3step ==3) then
+            tempy    = alphac * Kx * PAR / (Am + Rdark)
+            An       = (Am + Rdark) * (1 - 1.0 / (Kx *  LAI_surf(i,j)) * (E1(tempy * exp(-Kx*LAI_surf(i,j))) - E1(tempy)))
+            gc_inf    = LAI_surf(i,j) * (gmin/nuco2q + AGSa1 * fstr * An / ((co2abs - CO2comp) * (1 + Ds / Dstar)))
+            if (lrelaxgc_surf) then
+              if (gcsurf_old_set) then
+                gcco2       = gc_old(i,j) + min(kgc_surf*rk3coef, 1.0) * (gc_inf - gc_old(i,j))
+                if (rk3step ==3) then
+                  gc_old(i,j) = gcco2
+                endif
+              else
+                gcco2 = gc_inf
                 gc_old(i,j) = gcco2
               endif
             else
               gcco2 = gc_inf
-              gc_old(i,j) = gcco2
             endif
-          else
-            gcco2 = gc_inf
-          endif
+
+            if (lrelaxci_surf) then
+              if (cisurf_old_set .and. rk3step ==3) then
+                ci_old(i,j) = ci
+              else if (.not. cisurf_old_set) then
+                ci_old(i,j) = ci
+              endif
+            endif !lrelaxci_surf
+
+          end if ! splitleaf
+
 
           ! Calculate surface resistances for moisture and carbon dioxide
-          rsAgs    = 1.0 / (1.6 * gcco2)
+          rsAgs    = 1.0 / (nuco2q * gcco2)
           rsCO2    = 1.0 / gcco2
-
-          rsveg(i,j) = rsAgs
 
           ! Calculate net flux of CO2 into the plant (An)
           An       = - (co2abs - ci) / (ra(i,j) + rsCO2)
+
+          rsveg(i,j) = rsAgs
 
           ! CO2 soil respiraion surface flux
           fw       = Cw * wsmax / (phitot(i,j) + wsmin)
@@ -1985,10 +2026,10 @@ contains
 
           CO2flux(i,j) = wco2 * 1000.0 ! In ppb m/s
 
-
           local_wco2av = local_wco2av + wco2
           local_Anav   = local_Anav   + An
           local_gcco2av= local_gcco2av   + gcco2
+          local_alb_canav= local_alb_canav   + albedo_rad(i,j)
           local_Respav = local_Respav + Resp
 
           AnField   (i,j) = An
@@ -1999,13 +2040,46 @@ contains
           fstrField (i,j) = fstr
           ciField   (i,j) = ci
           PARField  (i,j) = PAR
-          if (lsplitleaf)then
-            PARdirField(i,j) = PARdir
-            PARdifField(i,j) = PARdif
-          endif
 
         endif !lrsAgs
 
+        if (lcanopyeb) then ! update surface Qnet if canopy above is present
+          if(iradiation > 0) then
+            if(iradiation == 1 .and. useMcICA) then
+              if(rk3step == 1) then
+                swdavn(i,j,2:nradtime) = swdavn(i,j,1:nradtime-1)
+                swuavn(i,j,2:nradtime) = swuavn(i,j,1:nradtime-1)
+                lwdavn(i,j,2:nradtime) = lwdavn(i,j,1:nradtime-1)
+                lwuavn(i,j,2:nradtime) = lwuavn(i,j,1:nradtime-1)
+
+                swdavn(i,j,1) = swd(i,j,1)
+                swuavn(i,j,1) = swu(i,j,1)
+                lwdavn(i,j,1) = lwd(i,j,1)
+                lwuavn(i,j,1) = lwu(i,j,1)
+
+              end if
+
+              swdav = sum(swdavn(i,j,:)) / nradtime
+              swuav = sum(swuavn(i,j,:)) / nradtime
+              lwdav = sum(lwdavn(i,j,:)) / nradtime
+              lwuav = sum(lwuavn(i,j,:)) / nradtime
+
+              Qnet(i,j) = -(swdav + swuav + lwdav + lwuav)
+            elseif(iradiation == irad_par .or. iradiation == 10) then !  Delta-eddington approach (2)  .or. rad_user (10)
+              swdav      = -swd(i,j,1)
+              Qnet(i,j)  = (swd(i,j,1) - swu(i,j,1) + lwd(i,j,1) - lwu(i,j,1))
+            else ! simple radiation scheme and RRTMG
+              Qnet(i,j) = -(swd(i,j,1) + swu(i,j,1) + lwd(i,j,1) + lwu(i,j,1))
+              swdav     = swd(i,j,1)
+            end if
+          else
+            if(lhetero) then
+              Qnet(i,j) = Qnet_patch(patchx,patchy)
+            else
+              Qnet(i,j) = Qnetav
+            endif
+          end if
+        endif
         ! 2.2   - Calculate soil resistance based on ECMWF method
 
         f2  = (phifc - phiwp) / (phiw(i,j,1) - phiwp)
@@ -2017,7 +2091,7 @@ contains
 
         ! CvH solve the surface temperature implicitly including variations in LWout
         if(rk3step == 1) then
-          tskinm(i,j) = tskin(i,j)
+          tskinm_surf(i,j) = tskin_surf(i,j)
           Wlm(i,j)    = Wl(i,j)
         end if
 
@@ -2026,7 +2100,7 @@ contains
         else
           exner   = (ps / pref0) ** (rd/cp)
         endif
-        tsurfm  = tskinm(i,j) * exner
+        tsurfm  = tskinm_surf(i,j) * exner
 
         esat    = 0.611e3 * exp(17.2694 * (tsurfm - 273.16) / (tsurfm - 35.86))
         if(lhetero) then
@@ -2053,7 +2127,7 @@ contains
           rssoil(i,j) = 0.
         end if
 
-        Wlmx      = LAI(i,j) * Wmax
+        Wlmx      = LAI_surf(i,j) * Wmax
         Wl(i,j)   = min(Wl(i,j), Wlmx)
         cliq(i,j) = Wl(i,j) / Wlmx
 
@@ -2069,32 +2143,32 @@ contains
         Acoef   = Qnet(i,j) - boltz * tsurfm ** 4. + 4. * boltz * tsurfm ** 4. + fH * Tatm + fLE *&
         (dqsatdT * tsurfm - qsat + qt0(i,j,1)) + lambdaskin(i,j) * tsoil(i,j,1)
 !\todo  Acoef   = Qnet(i,j) - boltz * tsurfm ** 4. + 4. * boltz * tsurfm ** 4. + fH * Tatm + fLE *&
-!       (dqsatdT * tsurfm - qsat + qt0(i,j,1)) + lambdaskin(i,j) * tsoil(i,j,1)- fRs[t]*(1.0 - albedoav(i,j))*swdown
+!       (dqsatdT * tsurfm - qsat + qt0(i,j,1)) + lambdaskin(i,j) * tsoil(i,j,1)- fRs[t]*(1.0 - albedoav_surf(i,j))*swdown
         Bcoef   = 4. * boltz * tsurfm ** 3. + fH + fLE * dqsatdT + lambdaskin(i,j)
 
         if (Cskin(i,j) == 0.) then
-          tskin(i,j) = Acoef * Bcoef ** (-1.) / exner
+          tskin_surf(i,j) = Acoef * Bcoef ** (-1.) / exner
         else
-          tskin(i,j) = (1. + rk3coef / Cskin(i,j) * Bcoef) ** (-1.) * (tsurfm + rk3coef / Cskin(i,j) * Acoef) / exner
+          tskin_surf(i,j) = (1. + rk3coef / Cskin(i,j) * Bcoef) ** (-1.) * (tsurfm + rk3coef / Cskin(i,j) * Acoef) / exner
         end if
 
-        Qnet(i,j)     = Qnet(i,j) - (boltz * tsurfm ** 4. + 4. * boltz * tsurfm ** 3. * (tskin(i,j) * exner - tsurfm))
-        G0(i,j)       = lambdaskin(i,j) * ( tskin(i,j) * exner - tsoil(i,j,1) )
-        LE(i,j)       = - fLE * ( qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
+        Qnet(i,j)     = Qnet(i,j) - (boltz * tsurfm ** 4. + 4. * boltz * tsurfm ** 3. * (tskin_surf(i,j) * exner - tsurfm))
+        G0(i,j)       = lambdaskin(i,j) * ( tskin_surf(i,j) * exner - tsoil(i,j,1) )
+        LE(i,j)       = - fLE * ( qt0(i,j,1) - (dqsatdT * (tskin_surf(i,j) * exner - tsurfm) + qsat))
 
-        LEveg         = - fLEveg  * ( qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
-        LEsoil        = - fLEsoil * ( qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
-        LEliq         = - fLEliq  * ( qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
+        LEveg         = - fLEveg  * ( qt0(i,j,1) - (dqsatdT * (tskin_surf(i,j) * exner - tsurfm) + qsat))
+        LEsoil        = - fLEsoil * ( qt0(i,j,1) - (dqsatdT * (tskin_surf(i,j) * exner - tsurfm) + qsat))
+        LEliq         = - fLEliq  * ( qt0(i,j,1) - (dqsatdT * (tskin_surf(i,j) * exner - tsurfm) + qsat))
 
         if(LE(i,j) == 0.) then
           rs(i,j)     = 1.e8
         else
-          rs(i,j)     = - rhof(1) * rlv * (qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat)) / LE(i,j) - ra(i,j)
+          rs(i,j)     = - rhof(1) * rlv * (qt0(i,j,1) - (dqsatdT * (tskin_surf(i,j) * exner - tsurfm) + qsat)) / LE(i,j) - ra(i,j)
         end if
 
-        H(i,j)        = - fH  * ( Tatm - tskin(i,j) * exner )
-        tskin(i,j)    = max(min(tskin(i,j),tskinm(i,j)+10.),tskinm(i,j)-10.)
-        tendskin(i,j) = Cskin(i,j) * (tskin(i,j) - tskinm(i,j)) * exner / rk3coef
+        H(i,j)        = - fH  * ( Tatm - tskin_surf(i,j) * exner )
+        tskin_surf(i,j)    = max(min(tskin_surf(i,j),tskinm_surf(i,j)+10.),tskinm_surf(i,j)-10.)
+        tendskin_surf(i,j) = Cskin(i,j) * (tskin_surf(i,j) - tskinm_surf(i,j)) * exner / rk3coef
 
         ! In case of dew formation, allow all water to enter skin reservoir Wl
         if(qsat - qt0(i,j,1) < 0.) then
@@ -2103,9 +2177,9 @@ contains
           Wl(i,j)       =  Wlm(i,j) - rk3coef * (LEliq / (rhow * rlv))
         end if
 
-        thlsl = thlsl + tskin(i,j)
+        thlsl = thlsl + tskin_surf(i,j)
         if (lhetero) then
-          lthls_patch(patchx,patchy) = lthls_patch(patchx,patchy) + tskin(i,j)
+          lthls_patch(patchx,patchy) = lthls_patch(patchx,patchy) + tskin_surf(i,j)
           Npatch(patchx,patchy)      = Npatch(patchx,patchy)      + 1
         endif
 
@@ -2162,28 +2236,50 @@ contains
         phiw(i,j,ksoilmax) = phiwm(i,j,ksoilmax) + rk3coef * (- lambdash(i,j,ksoilmax-1) * &
         (phiw(i,j,ksoilmax) - phiw(i,j,ksoilmax-1)) / dzsoil(ksoilmax-1) + gammash(i,j,ksoilmax-1) &
         - (phifrac(i,j,ksoilmax) * LEveg) / (rhow*rlv) ) / dzsoil(ksoilmax)
+
       end do
     end do
 
-    if (lrelaxgc .and. (.not. gc_old_set) ) then
+    if (lrelaxgc_surf .and. (.not. gcsurf_old_set) ) then
       if (rk3step == 3) then
-        gc_old_set = .true.
+        gcsurf_old_set = .true.
       endif
     endif
 
-    if (lrelaxci .and. (.not. ci_old_set) ) then
+    if (lrelaxci_surf .and. (.not. cisurf_old_set) ) then
       if (rk3step == 3) then
-        ci_old_set = .true.
+        cisurf_old_set = .true.
+      endif
+    endif
+    if (lcanopyeb) then
+       ! switches of canopyeb
+      if (lrelaxgc_can .and. (.not. gccan_old_set) ) then
+        if (rk3step == 3) then
+          gccan_old_set = .true.
+        endif
+      endif
+      if (lrelaxci_can .and. (.not. cican_old_set) ) then
+        if (rk3step == 3) then
+          cican_old_set = .true.
+        endif
+      endif
+      if (.not. tleaf_old_set) then
+        if (rk3step == 3) then
+          tleaf_old_set = .true.
+          if (myid==0)print *,'tleaf_old_set to true'
+        endif
       endif
     endif
 
     call MPI_ALLREDUCE(local_wco2av, wco2av, 1,    MY_REAL, MPI_SUM, comm3d,mpierr)
     call MPI_ALLREDUCE(local_Anav  , Anav  , 1,    MY_REAL, MPI_SUM, comm3d,mpierr)
     call MPI_ALLREDUCE(local_gcco2av  , gcco2av  , 1,    MY_REAL, MPI_SUM, comm3d,mpierr)
+    call MPI_ALLREDUCE(local_alb_canav  , alb_canav  , 1,    MY_REAL, MPI_SUM, comm3d,mpierr)
     call MPI_ALLREDUCE(local_Respav, Respav, 1,    MY_REAL, MPI_SUM, comm3d,mpierr)
 
     Anav   = Anav/ijtot
     gcco2av= gcco2av/ijtot
+    alb_canav= alb_canav/ijtot
     wco2av = wco2av/ijtot
     Respav = Respav/ijtot
 
@@ -2201,5 +2297,4 @@ contains
     call qtsurf
 
   end subroutine do_lsm
-
 end module modsurface

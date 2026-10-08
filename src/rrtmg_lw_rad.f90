@@ -383,7 +383,7 @@
 
 !
 ! Initializations
-      emis = 0.95
+      emis = sfc_emis
 
       taucld = 0._rb
       tauaer = 0._rb
