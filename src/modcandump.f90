@@ -33,10 +33,10 @@ private
 PUBLIC :: initcandump, candump,exitcandump
 save
 !NetCDF variables
-  integer :: nvar =23 
+  integer, parameter :: nvar_t = 23, nvar_m = 3 !nvar = 26 !23 
   integer :: ncid,nrec = 0
   character(80) :: fname = 'candump.xxx.xxx.xxx.nc'
-  character(80),dimension(:,:), allocatable :: ncname
+  character(80),dimension(:,:), allocatable :: ncname_t, ncname_m
   character(80),dimension(1,4) :: tncname
 
   real    :: dtav, tmin, tmax
@@ -61,7 +61,7 @@ contains
 
     namelist/NAMCANDUMP/ &
     dtav,lcandump,ldiracc,lbinary,khigh,klow,ncoarse,tmin,tmax
-
+    
     dtav  = dtav_glob
     klow  = 1
     khigh = ncanopy
@@ -105,47 +105,52 @@ contains
       stop 'dtav should be a integer multiple of dtmax'
     end if
 
-    nvar = nvar 
+
     if (lnetcdf) then
       write(fname,'(A,i3.3,A,i3.3,A)') 'candump.', myidx, '.', myidy, '.xxx.nc'
       fname(17:19) = cexpnr
-      allocate(ncname(nvar,4))
+      allocate(ncname_t(nvar_t,4), ncname_m(nvar_m,4))
       call ncinfo(tncname(1,:), 'time','Time','s','time')
-      call ncinfo(ncname( 1,:), 'sh_can','Sensible heat source','W/m3','tttt')
-      call ncinfo(ncname( 2,:), 'le_can','Latent heat source','W/m3','tttt')
-      call ncinfo(ncname( 3,:), 'Fco2_can','CO2 source','mg CO2 m-3 s-1','tttt')
-      call ncinfo(ncname( 4,:), 'gcc_leafsun', 'Carbon stomatal conductance on sunlit leaves','m s-1','tttt')
-      call ncinfo(ncname( 5,:), 'gcc_leafshad','Carbon stomatal conductance on shaded leaves','m s-1','tttt')
-      call ncinfo(ncname( 6,:), 'ci_leafsun',  'Carbon internal concentration on sunlit leaves','mg m-3','tttt')
-      call ncinfo(ncname( 7,:), 'ci_leafshad', 'Carbon internal concentration on shaded leaves','mg m-3','tttt')
-      call ncinfo(ncname( 8,:), 't_leafsun',  'Temperature on sunlit leaves','K','tttt')
-      call ncinfo(ncname( 9,:), 't_leafshad', 'Temperature on shaded leaves','K','tttt')
-      call ncinfo(ncname( 10,:),'sh_leafsun',  'SH on sunlit leaves','W m-2 leaf','tttt')
-      call ncinfo(ncname( 11,:),'sh_leafshad', 'SH on shaded leaves','W m-2 leaf','tttt')
-      call ncinfo(ncname( 12,:),'le_leafsun',  'LE on sunlit leaves','W m-2 leaf','tttt')
-      call ncinfo(ncname( 13,:),'le_leafshad', 'LE on shaded leaves','W m-2 leaf','tttt')
-      call ncinfo(ncname( 14,:),'An_leafsun',  'An on sunlit leaves','mgC m-2 s-1 leaf','tttt')
-      call ncinfo(ncname( 15,:),'An_leafshad', 'An on shaded leaves','mgC m-2 s-1 leaf','tttt')
-      call ncinfo(ncname( 16,:),'rb_leafsun',  'Leaf BL on sunlit leaves',' leaf','tttt')
-      call ncinfo(ncname( 17,:),'rb_leafshad', 'Leaf BL shaded leaves',' leaf','tttt')
-      call ncinfo(ncname( 18,:),'LWin_leafsun',  'LW into sunlit leaves','W m-2','tttt')
-      call ncinfo(ncname( 19,:),'LWin_leafshad', 'LW into shaded leaves','W m-2','tttt')
-      call ncinfo(ncname( 20,:),'LWout_leafsun',  'LW out from sunlit leaves','W m-2 ','tttt')
-      call ncinfo(ncname( 21,:),'LWout_leafshad', 'LW out from shaded leaves','W m-2 ','tttt')
-      call ncinfo(ncname( 22,:),'absSWleaf_allsun','SW absorbed by sunlit leaves','W m-2','tttt')
-      call ncinfo(ncname( 23,:),'absSWleaf_shad'  ,'SW absorbed by shaded leaves','W m-2','tttt')
+      call ncinfo(ncname_t( 1,:), 'sh_can','Sensible heat source','W/m3','tttt')
+      call ncinfo(ncname_t( 2,:), 'le_can','Latent heat source','W/m3','tttt')
+      call ncinfo(ncname_t( 3,:), 'Fco2_can','CO2 source','mg CO2 m-3 s-1','tttt')
+      call ncinfo(ncname_t( 4,:), 'gcc_leafsun', 'Carbon stomatal conductance on sunlit leaves','m s-1','tttt')
+      call ncinfo(ncname_t( 5,:), 'gcc_leafshad','Carbon stomatal conductance on shaded leaves','m s-1','tttt')
+      call ncinfo(ncname_t( 6,:), 'ci_leafsun',  'Carbon internal concentration on sunlit leaves','mg m-3','tttt')
+      call ncinfo(ncname_t( 7,:), 'ci_leafshad', 'Carbon internal concentration on shaded leaves','mg m-3','tttt')
+      call ncinfo(ncname_t( 8,:), 't_leafsun',  'Temperature on sunlit leaves','K','tttt')
+      call ncinfo(ncname_t( 9,:), 't_leafshad', 'Temperature on shaded leaves','K','tttt')
+      call ncinfo(ncname_t( 10,:),'sh_leafsun',  'SH on sunlit leaves','W m-2 leaf','tttt')
+      call ncinfo(ncname_t( 11,:),'sh_leafshad', 'SH on shaded leaves','W m-2 leaf','tttt')
+      call ncinfo(ncname_t( 12,:),'le_leafsun',  'LE on sunlit leaves','W m-2 leaf','tttt')
+      call ncinfo(ncname_t( 13,:),'le_leafshad', 'LE on shaded leaves','W m-2 leaf','tttt')
+      call ncinfo(ncname_t( 14,:),'An_leafsun',  'An on sunlit leaves','mgC m-2 s-1 leaf','tttt')
+      call ncinfo(ncname_t( 15,:),'An_leafshad', 'An on shaded leaves','mgC m-2 s-1 leaf','tttt')
+      call ncinfo(ncname_t( 16,:),'rb_leafsun',  'Leaf BL on sunlit leaves',' leaf','tttt')
+      call ncinfo(ncname_t( 17,:),'rb_leafshad', 'Leaf BL shaded leaves',' leaf','tttt')
+      call ncinfo(ncname_t( 18,:),'LWin_leafsun',  'LW into sunlit leaves','W m-2','tttt')
+      call ncinfo(ncname_t( 19,:),'LWin_leafshad', 'LW into shaded leaves','W m-2','tttt')
+      call ncinfo(ncname_t( 20,:),'LWout_leafsun',  'LW out from sunlit leaves','W m-2 ','tttt')
+      call ncinfo(ncname_t( 21,:),'LWout_leafshad', 'LW out from shaded leaves','W m-2 ','tttt')
+      call ncinfo(ncname_t( 22,:),'absSWleaf_allsun','SW absorbed by sunlit leaves','W m-2','tttt')
+      call ncinfo(ncname_t( 23,:),'absSWleaf_shad'  ,'SW absorbed by shaded leaves','W m-2','tttt')
+      !call ncinfo(ncname( 24,:),'swd','Downwards SW','W m-2','ttmt')
+      call ncinfo(ncname_m( 1,:),'swdir','Downwards direct SW','W m-2','ttmt')
+      call ncinfo(ncname_m( 2,:),'swdif','Downwards diffuse SW','W m-2','ttmt')
+      call ncinfo(ncname_m( 3,:),'swu'  ,'Upwards SW','W m-2','ttmt')
       !call ncinfo(ncname( 19,:),'SWdir','Downwards direct SW','W m-2','ttmt')
       !call ncinfo(ncname( 20,:),'SWdif','Downwards diffuse SW','W m-2','ttmt')
       !call ncinfo(ncname( 21,:),'SWup'  ,'Upwards SW','W m-2','ttmt')
       !call ncinfo(ncname( 22,:),'LWd','Downwards LW','W m-2','ttmt')
       !call ncinfo(ncname( 23,:),'LWu','Upwards LW','W m-2','ttmt')
       !radiation vars still missing
-      call open_nc(fname,  ncid,nrec,n1=ceiling(1.0*imax/ncoarse),n2=ceiling(1.0*jmax/ncoarse),n3=khigh-klow+1)
+      call open_nc(fname,  ncid,nrec,n1=ceiling(1.0*imax/ncoarse),n2=ceiling(1.0*jmax/ncoarse),n3=khigh-klow+1, n3m = khigh-klow+2)
       if (nrec==0) then
         call define_nc( ncid, 1, tncname)
         call writestat_dims_nc(ncid, ncoarse)
       end if
-     call define_nc( ncid, NVar, ncname)
+     call define_nc( ncid, nvar_t, ncname_t)
+     call define_nc( ncid, nvar_m, ncname_m)
     end if
 
   end subroutine initcandump
@@ -162,10 +167,11 @@ contains
                           absSWleaf_shad,absSWleaf_allsun,&
                           sh_leafsun,sh_leafshad,le_leafsun,le_leafshad,An_leafsun,An_leafshad,rb_leafsun,rb_leafshad,&
                           LWin_leafsun,LWin_leafshad,LWout_leafsun,LWout_leafshad
+   use modraddata, only : swdir,swdif,swu
     implicit none
 
     integer(KIND=selected_int_kind(4)), allocatable :: field(:,:,:)
-    real, allocatable :: vars(:,:,:,:)
+    real, allocatable :: vars(:,:,:,:), vars_m(:,:,:,:)
     integer i,j,k
     integer :: writecounter = 1
     integer :: reclength
@@ -183,9 +189,10 @@ contains
     dt_lim = minval((/dt_lim,tnext-timee/))
 
     allocate(field(2-ih:i1+ih,2-jh:j1+jh,k1))
-    allocate(vars(ceiling(1.0*imax/ncoarse),ceiling(1.0*jmax/ncoarse),khigh-klow+1,nvar))
+    allocate(vars(ceiling(1.0*imax/ncoarse),ceiling(1.0*jmax/ncoarse),khigh-klow+1,nvar_t))
+    allocate(vars_m(ceiling(1.0*imax/ncoarse),ceiling(1.0*jmax/ncoarse),khigh-klow+2,nvar_m))
 
-    reclength = ceiling(1.0*imax/ncoarse)*ceiling(1.0*jmax/ncoarse)*(khigh-klow+1)*2
+    reclength = ceiling(1.0*imax/ncoarse)*ceiling(1.0*jmax/ncoarse)*(khigh-klow+2)*2
 
     field = NINT(1.0E3*sh_can,2)
     if (lnetcdf) vars(:,:,:,1) = sh_can(2:i1:ncoarse,2:j1:ncoarse,klow:khigh)
@@ -486,14 +493,54 @@ contains
       close (ifoutput)
     endif
 
+    field = NINT(1.0e3*swdir,2)
+    if (lnetcdf) vars_m(:,:,:,1) = swdir(2:i1:ncoarse,2:j1:ncoarse,klow:khigh+1)
+    if (lbinary) then
+      if (ldiracc) then
+        open (ifoutput,file='wbswdir.'//cmyidx//'.'//cmyidy//'.'//cexpnr,access='direct', form='unformatted', recl=reclength)
+        write (ifoutput, rec=writecounter) field(2:i1:ncoarse,2:j1:ncoarse,klow:khigh+1)
+      else
+        open  (ifoutput,file='wbswdir.'//cmyidx//'.'//cmyidy//'.'//cexpnr,form='unformatted',position='append')
+        write (ifoutput) (((field(i,j,k),i=2,i1, ncoarse),j=2,j1, ncoarse),k=klow,khigh+1)
+      end if
+      close (ifoutput)
+    endif
+
+    field = NINT(1.0e3*swdif,2)
+    if (lnetcdf) vars_m(:,:,:,2) = swdif(2:i1:ncoarse,2:j1:ncoarse,klow:khigh+1)
+    if (lbinary) then
+      if (ldiracc) then
+        open (ifoutput,file='wbswdif.'//cmyidx//'.'//cmyidy//'.'//cexpnr,access='direct', form='unformatted', recl=reclength)
+        write (ifoutput, rec=writecounter) field(2:i1:ncoarse,2:j1:ncoarse,klow:khigh+1)
+      else
+        open  (ifoutput,file='wbswdif.'//cmyidx//'.'//cmyidy//'.'//cexpnr,form='unformatted',position='append')
+        write (ifoutput) (((field(i,j,k),i=2,i1, ncoarse),j=2,j1, ncoarse),k=klow,khigh+1)
+      end if
+      close (ifoutput)
+    endif
+
+    field = NINT(1.0e3*swu,2)
+    if (lnetcdf) vars_m(:,:,:,3) = swu(2:i1:ncoarse,2:j1:ncoarse,klow:khigh+1)
+    if (lbinary) then
+      if (ldiracc) then
+        open (ifoutput,file='wbswu.'//cmyidx//'.'//cmyidy//'.'//cexpnr,access='direct', form='unformatted', recl=reclength)
+        write (ifoutput, rec=writecounter) field(2:i1:ncoarse,2:j1:ncoarse,klow:khigh+1)
+      else
+        open  (ifoutput,file='wbswu.'//cmyidx//'.'//cmyidy//'.'//cexpnr,form='unformatted',position='append')
+        write (ifoutput) (((field(i,j,k),i=2,i1, ncoarse),j=2,j1, ncoarse),k=klow,khigh+1)
+      end if
+      close (ifoutput)
+    endif
+
     if(lnetcdf) then
       call writestat_nc(ncid,1,tncname,(/rtimee/),nrec,.true.)
-      call writestat_nc(ncid,nvar,ncname,vars,nrec,ceiling(1.0*imax/ncoarse),ceiling(1.0*jmax/ncoarse),khigh-klow+1)
+      call writestat_nc(ncid,nvar_t,ncname_t,vars,nrec,ceiling(1.0*imax/ncoarse),ceiling(1.0*jmax/ncoarse),khigh-klow+1)
+      call writestat_nc(ncid,nvar_m,ncname_m,vars_m,nrec,ceiling(1.0*imax/ncoarse),ceiling(1.0*jmax/ncoarse),khigh-klow+2)
     end if
 
     writecounter=writecounter+1
 
-    deallocate(field,vars)
+    deallocate(field,vars, vars_m)
 
   end subroutine candump
 !> Clean up when leaving the run
